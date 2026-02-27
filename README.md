@@ -1,16 +1,30 @@
 # Retina Cannon
 
-Local project for shader/camera rendering with Python and shell scripts.
+Retina Cannon is a real-time camera-to-shader visual engine for Raspberry Pi.
+It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style effect through DRM/KMS + OpenGL ES.
 
-## Structure
-- Runtime shaders and scripts are in this root (`*.frag`, `retina_cannon.py`, `start_cannon.sh`).
-- `glslViewer/` is treated as an external local dependency (separate repo, not versioned here).
-- `.codex/` stores operational memory and session logs.
+## Features
+- Live camera capture pipeline (Picamera2 + libcamera).
+- Real-time shader rendering with `kms-glsl`.
+- Interactive controls for color modes and distortion.
+- Stable runtime baseline around 20 FPS on the current target setup.
 
-## Quick start
-1. Verify graphics/camera prerequisites on the host.
-2. Run: `/home/enuzzo/retinacannon/start_cannon.sh`
+## Requirements
+- Raspberry Pi with camera support enabled.
+- `python3`, `libcamera`, `picamera2`.
+- Local `kms-glsl` checkout at `/home/enuzzo/kms-glsl`.
 
-## Security
-- No secrets in versioned files.
-- Secrets only in ignored local files (`config.local.h`, `.env.local`, etc.).
+## Run
+```bash
+./start_cannon.sh
+```
+
+## Controls
+- `Arrow Up/Down`: cycle color modes.
+- `Arrow Left/Right`: adjust distortion strength.
+- `Ctrl+C`: stop rendering.
+
+## Project Files
+- `retina_cannon.py`: main runtime and input handling.
+- `rutt_etra.frag`: active shader effect.
+- `start_cannon.sh`: canonical launcher script.
