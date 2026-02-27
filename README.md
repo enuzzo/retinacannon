@@ -11,6 +11,22 @@ It grabs live video from the Pi Camera, feeds every frame into a fragment shader
 
 ---
 
+## Why this exists
+
+Like most Raspberry Pi projects, this one started with a purchasing decision that seemed completely reasonable at the time.
+
+The logic goes like this: *"I already have three Pis, but this one will be different — I'll use it as a dedicated Doom server / home NAS (I already have a NAS) / weather station for a city I don't live in / automatic cat feeder (no cat) / retro gaming console (will play it twice) / AI assistant that listens to everything I say (fine, maybe not that one)."*
+
+Four Pis later, they sit on the desk. They don't say anything. They just look at you. Judgmentally. With their little red power LEDs.
+
+At some point the only reasonable response is to give one of them a camera, a monitor, and a reason to live. Hence: Retina Cannon.
+
+**The actual use case** is beautifully stupid: print a nice 3D-printed enclosure *(files coming soon — yes, we will actually share them, wiiiwwww 🎉)*, walk into a friend's place with a 100-inch TV doing absolutely nothing, plug in AC + HDMI, and suddenly you're the most interesting person at the party. No streaming service. No game console. Just a $40 computer turning your guests into glitchy CRT sculptures in real time.
+
+**What's coming:** encoder knob and gesture controls — already prototyped on breadboard, already working, just not integrated yet. This is because the author also needs to eat, sleep, and occasionally interact with other humans. The todos are real. The timeline is optimistic. You know how it goes.
+
+---
+
 ## What it does
 
 Two effects, switchable live:
