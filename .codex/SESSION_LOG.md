@@ -32,3 +32,11 @@
 - Fix: n/a.
 - Concrete verification: `find` returns only `/home/enuzzo/retinacannon/.codex`; root git status is clean.
 - Prevention: treat `glslViewer/` as external nested repo and keep project governance only at root.
+
+### [2026-02-27 09:01] Coherence audit before start
+- Goal: run a full coherence audit on folders, structure, and security in `retinacannon`.
+- Actions taken: checked root and nested git status; validated folder layout and `.codex` placement; scanned for secret patterns; verified ignore rules with `check-ignore`; validated shell/python entrypoint syntax.
+- Errors encountered: runtime smoke test failed on this shell with `GLFW error 0x1000e: Failed to detect any supported platform`.
+- Fix: no code change applied; issue is environment/display availability, not repo consistency.
+- Concrete verification: root repo is clean; no tracked local-secret files; `.codex` only in root; ignore rules are active.
+- Prevention: run startup checks from a display-enabled session before runtime validation sign-off.
