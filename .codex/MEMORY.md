@@ -28,6 +28,7 @@
 ## Recurring gotchas
 - Graphics runtime can fail when GLFW/display platform is unavailable. (verified)
 - `glslViewer/` here is a nested repo, not part of this root repo history. (verified)
+- Arrow keys may emit either `ESC [` or `ESC O`; keyboard parser must support both. (verified)
 
 ## Pre-flight checklist
 - [ ] Read `MEMORY.md`.

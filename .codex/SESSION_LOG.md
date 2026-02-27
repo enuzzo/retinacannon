@@ -79,3 +79,13 @@
   - Color key test: `[COLOR] Green phosphor` then `[COLOR] White` observed after Arrow Up/Down.
   - Rendering remained stable around ~20 FPS during interactive tests.
 - Prevention: when adding new float uniforms through ctypes, always wrap scalar values with matching ctypes types.
+
+### [2026-02-27 09:37] Keyboard feedback reliability fix
+- Goal: fix missing arrow-key feedback on some terminals/keyboards.
+- Actions taken: updated keyboard parser to accept both ANSI arrow prefixes (`ESC [` and `ESC O`).
+- Errors encountered: none after parser update.
+- Fix: changed condition from `ch2 == '['` to `ch2 in ('[', 'O')`.
+- Concrete verification:
+  - `ESC O` sequence test produced `[DISTORTION]` and `[COLOR]` feedback.
+  - `ESC [` sequence test also produced `[DISTORTION]` feedback.
+- Prevention: keep multi-prefix handling for terminal control sequences in interactive input code.

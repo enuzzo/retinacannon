@@ -121,7 +121,7 @@ def keyboard_thread():
                 break
             if ch == '\x1b':
                 ch2 = sys.stdin.read(1)
-                if ch2 == '[':
+                if ch2 in ('[', 'O'):
                     ch3 = sys.stdin.read(1)
                     if ch3 == 'A':
                         current_color_mode = (current_color_mode + 1) % 4
