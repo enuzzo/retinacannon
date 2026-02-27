@@ -7,6 +7,7 @@ uniform int uViewMode;
 uniform float uCameraAspect;
 uniform int uShowFps;
 uniform float uFpsValue;
+uniform float uPixelSize;
 
 #define LINES 72.0
 #define LINE_WIDTH 0.0015
@@ -414,6 +415,90 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     return clamp(color, 0.0, 1.0);
 }
 
+// ── Pixel Art ──────────────────────────────────────────────────────────────
+//
+//  uColorMode:
+//    0  Full Color   — camera pixelated, colors corrected (BGR→RGB)
+//    1  Game Boy     — DMG-01 four-shade green palette + LCD pixel gap
+//    2  CGA          — Mode 4 Palette 1 hi: black / cyan / magenta / white
+//    3  Phosphor     — P1 green terminal with subtle bloom
+//    4  Amber        — P3 amber monitor with warm glow
+//    5  Infrared     — FLIR jet colormap, white-hot
+//
+//  uPixelSize: block edge in screen pixels (4 – 48)
+
+vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
+    float ps = max(uPixelSize, 2.0);
+
+    // Snap to pixel-block centre and sample once
+    vec2 blockId     = floor(fragCoord / ps);
+    vec2 blockCenter = (blockId + 0.5) * ps;
+    vec2 puv         = safeUV(blockCenter / iResolution.xy);
+    vec2 inBlock     = fract(fragCoord / ps);   // 0..1 inside the block
+
+    vec3 raw  = texture(iChannel0, puv).bgr;    // camera is BGR — swap once
+    float luma = liftShadowLuma(getLuma(raw));
+
+    vec3 col;
+
+    if (uColorMode == 0) {
+        // ── Full Color ──────────────────────────────────────────────────────
+        col = raw;
+
+    } else if (uColorMode == 1) {
+        // ── Game Boy DMG-01 ─────────────────────────────────────────────────
+        int lvl = clamp(int(floor(luma * 4.0)), 0, 3);
+        if      (lvl == 0) col = vec3(0.059, 0.220, 0.059);  // darkest
+        else if (lvl == 1) col = vec3(0.188, 0.384, 0.188);
+        else if (lvl == 2) col = vec3(0.545, 0.675, 0.059);
+        else               col = vec3(0.608, 0.737, 0.059);  // lightest
+
+        // LCD pixel gap — adaptive to block size
+        float gapW = clamp(1.5 / ps, 0.04, 0.18);
+        float bx = smoothstep(0.0, gapW, inBlock.x) * (1.0 - smoothstep(1.0 - gapW, 1.0, inBlock.x));
+        float by = smoothstep(0.0, gapW, inBlock.y) * (1.0 - smoothstep(1.0 - gapW, 1.0, inBlock.y));
+        col = mix(vec3(0.031, 0.110, 0.031), col, bx * by);
+
+    } else if (uColorMode == 2) {
+        // ── CGA Mode 4 Palette 1 Hi ─────────────────────────────────────────
+        //    black / cyan / magenta / white
+        int lvl = clamp(int(floor(luma * 4.0)), 0, 3);
+        if      (lvl == 0) col = vec3(0.0);
+        else if (lvl == 1) col = vec3(0.333, 1.0,   1.0  );  // #55FFFF
+        else if (lvl == 2) col = vec3(1.0,   0.333, 1.0  );  // #FF55FF
+        else               col = vec3(1.0);
+
+    } else if (uColorMode == 3) {
+        // ── Phosphor P1 green ───────────────────────────────────────────────
+        float g = pow(luma, 0.85) * 0.92;
+        col  = vec3(0.0, g, g * 0.06);                // slight warm tinge
+        col += vec3(0.0, luma * luma * 0.10, 0.0);   // soft bloom
+        // subtle vignette for CRT feel
+        float vig = pow(clamp(16.0 * puv.x * puv.y * (1.0-puv.x) * (1.0-puv.y), 0.0, 1.0), 0.30);
+        col *= mix(0.55, 1.0, vig);
+
+    } else if (uColorMode == 4) {
+        // ── Amber P3 monitor ────────────────────────────────────────────────
+        float a = pow(luma, 0.88) * 0.96;
+        col  = vec3(a * 1.10, a * 0.54, 0.0);
+        col += vec3(a * a * 0.09, a * a * 0.04, 0.0); // warm bloom
+        float vig = pow(clamp(16.0 * puv.x * puv.y * (1.0-puv.x) * (1.0-puv.y), 0.0, 1.0), 0.30);
+        col *= mix(0.55, 1.0, vig);
+
+    } else {
+        // ── Infrared / FLIR jet ─────────────────────────────────────────────
+        //    cold (blue) → cyan → green → yellow → orange → red → white-hot
+        float t = luma;
+        float r = clamp(1.5 - abs(4.0 * t - 3.0), 0.0, 1.0);
+        float g = clamp(1.5 - abs(4.0 * t - 2.0), 0.0, 1.0);
+        float b = clamp(1.5 - abs(4.0 * t - 1.0), 0.0, 1.0);
+        col = vec3(r, g, b);
+        col = mix(col, vec3(1.0), smoothstep(0.88, 1.0, luma)); // white-hot
+    }
+
+    return clamp(col, 0.0, 1.0);
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     if (uViewMode == 0) {
@@ -432,8 +517,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 color;
     if (uEffectMode == 0) {
         color = renderRutt(uv, fragCoord);
-    } else {
+    } else if (uEffectMode == 1) {
         color = renderAscii(uv, fragCoord);
+    } else {
+        color = renderPixelArt(uv, fragCoord);
     }
     fragColor = vec4(color, 1.0);
 }

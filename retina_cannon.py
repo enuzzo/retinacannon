@@ -74,10 +74,13 @@ loc_ascii_density = -1
 loc_effect_mode = -1
 loc_view_mode = -1
 loc_camera_aspect = -1
+loc_pixelart_size = -1
 current_rutt_color_mode = 2
 current_ascii_color_mode = 0
+current_pixelart_color_mode = 0
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
+current_pixelart_size = 8.0
 current_effect_mode = 0
 current_view_mode = 2
 current_show_fps = 0
@@ -87,10 +90,14 @@ RUTT_WAVE_MAX = 3.80
 ASCII_DENSITY_STEP = 0.20
 ASCII_DENSITY_MIN = 1.00
 ASCII_DENSITY_MAX = 6.00
+PIXELART_SIZE_STEP = 2.0
+PIXELART_SIZE_MIN = 4.0
+PIXELART_SIZE_MAX = 48.0
 
 RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
 ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono letters', 'Inverted color letters']
-EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
+PIXELART_COLOR_MODE_NAMES = ['Full Color', 'Game Boy', 'CGA', 'Phosphor', 'Amber', 'Infrared']
+EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art']
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
 _quiet_stdin_w = None
@@ -216,17 +223,27 @@ def _request_renderer_stop():
     glsl.stop()
 
 def _color_mode_name():
-    return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode] if current_effect_mode == 0 else ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
+    if current_effect_mode == 0:
+        return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]
+    elif current_effect_mode == 1:
+        return ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
+    return PIXELART_COLOR_MODE_NAMES[current_pixelart_color_mode]
 
 def _active_color_mode():
-    return current_rutt_color_mode if current_effect_mode == 0 else current_ascii_color_mode
+    if current_effect_mode == 0:
+        return current_rutt_color_mode
+    elif current_effect_mode == 1:
+        return current_ascii_color_mode
+    return current_pixelart_color_mode
 
 def _set_active_color_mode(mode):
-    global current_rutt_color_mode, current_ascii_color_mode
+    global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_color_mode
     if current_effect_mode == 0:
         current_rutt_color_mode = mode % len(RUTT_COLOR_MODE_NAMES)
-    else:
+    elif current_effect_mode == 1:
         current_ascii_color_mode = mode % len(ASCII_COLOR_MODE_NAMES)
+    else:
+        current_pixelart_color_mode = mode % len(PIXELART_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
@@ -235,7 +252,9 @@ def _cycle_active_color_mode(step):
 def _effect_param_label():
     if current_effect_mode == 0:
         return f'[RUTT] Wave {current_rutt_wave:.2f}x'
-    return f'[ASCII] Density {current_ascii_density:.2f}x'
+    elif current_effect_mode == 1:
+        return f'[ASCII] Density {current_ascii_density:.2f}x'
+    return f'[PIXEL] Size {int(current_pixelart_size)}px'
 
 def _toggle_fps_logging():
     global current_show_fps, _fps_last_report_time
@@ -333,7 +352,7 @@ def _print_shutdown_banner(reason):
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
     global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density
-    global loc_effect_mode, loc_view_mode, loc_camera_aspect
+    global loc_effect_mode, loc_view_mode, loc_camera_aspect, loc_pixelart_size
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
     loc_rutt_wave = glsl.glGetUniformLocation(program, b'uRuttWave')
@@ -341,6 +360,7 @@ def on_init(program, width, height):
     loc_effect_mode = glsl.glGetUniformLocation(program, b'uEffectMode')
     loc_view_mode = glsl.glGetUniformLocation(program, b'uViewMode')
     loc_camera_aspect = glsl.glGetUniformLocation(program, b'uCameraAspect')
+    loc_pixelart_size = glsl.glGetUniformLocation(program, b'uPixelSize')
 
     # Create the texture manually
     tid = c_uint(0)
@@ -372,6 +392,8 @@ def on_init(program, width, height):
         glsl.glUniform1i(loc_view_mode, current_view_mode)
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
+    if loc_pixelart_size >= 0:
+        glsl.glUniform1f(loc_pixelart_size, c_float(current_pixelart_size))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
     _print_startup_banner()
@@ -398,6 +420,8 @@ def on_render(frame, time):
         glsl.glUniform1i(loc_view_mode, current_view_mode)
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
+    if loc_pixelart_size >= 0:
+        glsl.glUniform1f(loc_pixelart_size, c_float(current_pixelart_size))
     if _fps_last_time is not None and time > _fps_last_time and frame >= _fps_last_frame:
         dt = time - _fps_last_time
         df = frame - _fps_last_frame
@@ -462,7 +486,7 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_rutt_wave, current_ascii_density
+    global current_rutt_wave, current_ascii_density, current_pixelart_size
     global current_effect_mode, current_view_mode, _ctrl_c_requested
     import termios
     try:
@@ -509,14 +533,18 @@ def keyboard_thread():
                 elif direction == 'right':
                     if current_effect_mode == 0:
                         current_rutt_wave = min(RUTT_WAVE_MAX, current_rutt_wave + RUTT_WAVE_STEP)
-                    else:
+                    elif current_effect_mode == 1:
                         current_ascii_density = min(ASCII_DENSITY_MAX, current_ascii_density + ASCII_DENSITY_STEP)
+                    else:
+                        current_pixelart_size = min(PIXELART_SIZE_MAX, current_pixelart_size + PIXELART_SIZE_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
                     if current_effect_mode == 0:
                         current_rutt_wave = max(RUTT_WAVE_MIN, current_rutt_wave - RUTT_WAVE_STEP)
-                    else:
+                    elif current_effect_mode == 1:
                         current_ascii_density = max(ASCII_DENSITY_MIN, current_ascii_density - ASCII_DENSITY_STEP)
+                    else:
+                        current_pixelart_size = max(PIXELART_SIZE_MIN, current_pixelart_size - PIXELART_SIZE_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):
                     # Fallback for terminals that emit ESC...F for this key.
