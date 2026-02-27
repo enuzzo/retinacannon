@@ -49,16 +49,22 @@ tex_id = None
 tex_unit = 0
 loc_channel0 = -1
 loc_color_mode = -1
-loc_distortion = -1
+loc_rutt_wave = -1
+loc_ascii_density = -1
 loc_effect_mode = -1
 current_color_mode = 0
-current_distortion = 1.0
+current_rutt_wave = 1.40
+current_ascii_density = 1.00
 current_effect_mode = 0
-DISTORTION_STEP = 0.10
-DISTORTION_MIN = 0.10
-DISTORTION_MAX = 4.00
+RUTT_WAVE_STEP = 0.10
+RUTT_WAVE_MIN = 0.40
+RUTT_WAVE_MAX = 3.80
+ASCII_DENSITY_STEP = 0.12
+ASCII_DENSITY_MIN = 0.55
+ASCII_DENSITY_MAX = 2.40
 
-COLOR_MODE_NAMES = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
+RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
+ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Monochrome letters', 'Color letters']
 EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
 
 _quiet_stdin_w = None
@@ -82,12 +88,23 @@ def _request_renderer_stop():
             pass
     glsl.stop()
 
+def _color_mode_name():
+    if current_effect_mode == 0:
+        return RUTT_COLOR_MODE_NAMES[current_color_mode]
+    return ASCII_COLOR_MODE_NAMES[current_color_mode]
+
+def _effect_param_label():
+    if current_effect_mode == 0:
+        return f'[RUTT] Wave {current_rutt_wave:.2f}x'
+    return f'[ASCII] Density {current_ascii_density:.2f}x'
+
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
-    global tex_id, loc_channel0, loc_color_mode, loc_distortion, loc_effect_mode
+    global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density, loc_effect_mode
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
-    loc_distortion = glsl.glGetUniformLocation(program, b'uDistortion')
+    loc_rutt_wave = glsl.glGetUniformLocation(program, b'uRuttWave')
+    loc_ascii_density = glsl.glGetUniformLocation(program, b'uAsciiDensity')
     loc_effect_mode = glsl.glGetUniformLocation(program, b'uEffectMode')
 
     # Create the texture manually
@@ -108,13 +125,15 @@ def on_init(program, width, height):
     loc_channel0 = glsl.glGetUniformLocation(program, b'iChannel0')
     if loc_channel0 >= 0:
         glsl.glUniform1i(loc_channel0, 0)
-    if loc_distortion >= 0:
-        glsl.glUniform1f(loc_distortion, c_float(current_distortion))
+    if loc_rutt_wave >= 0:
+        glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
+    if loc_ascii_density >= 0:
+        glsl.glUniform1f(loc_ascii_density, c_float(current_ascii_density))
     if loc_effect_mode >= 0:
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
-    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: peak height | Space: effect mode')
+    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -127,8 +146,10 @@ def on_render(frame, time):
                          GL_RGB, GL_UNSIGNED_BYTE, data)
     if loc_color_mode >= 0:
         glsl.glUniform1i(loc_color_mode, current_color_mode)
-    if loc_distortion >= 0:
-        glsl.glUniform1f(loc_distortion, c_float(current_distortion))
+    if loc_rutt_wave >= 0:
+        glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
+    if loc_ascii_density >= 0:
+        glsl.glUniform1f(loc_ascii_density, c_float(current_ascii_density))
     if loc_effect_mode >= 0:
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
 
@@ -169,7 +190,7 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_color_mode, current_distortion, current_effect_mode
+    global current_color_mode, current_rutt_wave, current_ascii_density, current_effect_mode
     import termios, tty
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
@@ -193,23 +214,29 @@ def keyboard_thread():
                 break
             if ch == ' ':
                 current_effect_mode = (current_effect_mode + 1) % len(EFFECT_MODE_NAMES)
-                print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]}        ')
+                print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]} | [COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
                 continue
             if ch == '\x1b':
                 seq = _read_escape_sequence(fd)
                 direction = _decode_arrow(seq)
                 if direction == 'up':
                     current_color_mode = (current_color_mode + 1) % 4
-                    print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
+                    print(f'\r[COLOR] {_color_mode_name()}        ')
                 elif direction == 'down':
                     current_color_mode = (current_color_mode - 1) % 4
-                    print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
+                    print(f'\r[COLOR] {_color_mode_name()}        ')
                 elif direction == 'right':
-                    current_distortion = min(DISTORTION_MAX, current_distortion + DISTORTION_STEP)
-                    print(f'\r[PEAK] {current_distortion:.2f}x        ')
+                    if current_effect_mode == 0:
+                        current_rutt_wave = min(RUTT_WAVE_MAX, current_rutt_wave + RUTT_WAVE_STEP)
+                    else:
+                        current_ascii_density = min(ASCII_DENSITY_MAX, current_ascii_density + ASCII_DENSITY_STEP)
+                    print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
-                    current_distortion = max(DISTORTION_MIN, current_distortion - DISTORTION_STEP)
-                    print(f'\r[PEAK] {current_distortion:.2f}x        ')
+                    if current_effect_mode == 0:
+                        current_rutt_wave = max(RUTT_WAVE_MIN, current_rutt_wave - RUTT_WAVE_STEP)
+                    else:
+                        current_ascii_density = max(ASCII_DENSITY_MIN, current_ascii_density - ASCII_DENSITY_STEP)
+                    print(f'\r{_effect_param_label()}        ')
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
         os.close(fd)

@@ -6,7 +6,7 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 ## Features
 - Live camera capture pipeline (Picamera2 + libcamera).
 - Real-time shader rendering with `kms-glsl`.
-- Interactive controls for color modes and distortion.
+- Interactive controls for color modes and per-effect parameters.
 - Dual effect mode: Rutt-Etra CRT + ASCII Cam.
 - Stable runtime baseline around 20 FPS on the current target setup.
 
@@ -22,9 +22,15 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 
 ## Controls
 - `Arrow Up/Down`: cycle color modes.
-- `Arrow Left/Right`: adjust peak height.
+- `Arrow Left/Right`:
+  - in `Rutt-Etra`: increase/decrease wave intensity/frequency.
+  - in `ASCII Cam`: increase/decrease character density.
 - `Space`: switch effect mode (Rutt-Etra / ASCII Cam).
 - `Ctrl+C`: stop rendering.
+
+## Color Modes
+- `Rutt-Etra`: `B/W`, `Colors`, `Prism Warp`, `Acid Melt`.
+- `ASCII Cam`: `Color symbols`, `Monochrome symbols`, `Monochrome letters`, `Color letters`.
 
 ## Project Files
 - `retina_cannon.py`: main runtime and input handling.
