@@ -49,13 +49,21 @@ tex_id = None
 tex_unit = 0
 loc_channel0 = -1
 loc_color_mode = -1
+loc_distortion = -1
 current_color_mode = 0
+current_distortion = 1.0
+DISTORTION_STEP = 0.05
+DISTORTION_MIN = 0.10
+DISTORTION_MAX = 3.00
+
+COLOR_MODE_NAMES = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
-    global tex_id, loc_channel0, loc_color_mode
+    global tex_id, loc_channel0, loc_color_mode, loc_distortion
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
+    loc_distortion = glsl.glGetUniformLocation(program, b'uDistortion')
 
     # Create the texture manually
     tid = c_uint(0)
@@ -75,8 +83,11 @@ def on_init(program, width, height):
     loc_channel0 = glsl.glGetUniformLocation(program, b'iChannel0')
     if loc_channel0 >= 0:
         glsl.glUniform1i(loc_channel0, 0)
+    if loc_distortion >= 0:
+        glsl.glUniform1f(loc_distortion, c_float(current_distortion))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
+    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: distortion')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -89,13 +100,15 @@ def on_render(frame, time):
                          GL_RGB, GL_UNSIGNED_BYTE, data)
     if loc_color_mode >= 0:
         glsl.glUniform1i(loc_color_mode, current_color_mode)
+    if loc_distortion >= 0:
+        glsl.glUniform1f(loc_distortion, c_float(current_distortion))
 
 glsl.onInit(on_init)
 glsl.onRender(on_render)
 
 # ---- Keyboard thread ----
 def keyboard_thread():
-    global current_color_mode
+    global current_color_mode, current_distortion
     import termios, tty
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
@@ -110,13 +123,18 @@ def keyboard_thread():
                 ch2 = sys.stdin.read(1)
                 if ch2 == '[':
                     ch3 = sys.stdin.read(1)
-                    names = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
                     if ch3 == 'A':
                         current_color_mode = (current_color_mode + 1) % 4
-                        print(f'\r[COLOR] {names[current_color_mode]}        ')
+                        print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
                     elif ch3 == 'B':
                         current_color_mode = (current_color_mode - 1) % 4
-                        print(f'\r[COLOR] {names[current_color_mode]}        ')
+                        print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
+                    elif ch3 == 'C':
+                        current_distortion = min(DISTORTION_MAX, current_distortion + DISTORTION_STEP)
+                        print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
+                    elif ch3 == 'D':
+                        current_distortion = max(DISTORTION_MIN, current_distortion - DISTORTION_STEP)
+                        print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 

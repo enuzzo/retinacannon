@@ -1,5 +1,6 @@
 uniform sampler2D iChannel0;
 uniform int uColorMode;
+uniform float uDistortion;
 
 #define LINES 80.0
 #define LINE_WIDTH 0.0015
@@ -10,10 +11,10 @@ float getLuma(vec3 color) {
 }
 
 vec3 getLineColor(int mode, vec3 camColor) {
-    if (mode == 0) return vec3(1.0);          // Bianco
-    if (mode == 1) return vec3(0.1, 1.0, 0.3); // Verde phosphor
-    if (mode == 2) return vec3(1.0, 0.5, 0.05); // Ambra CRT
-    return camColor * 2.0;                    // Colori camera
+    if (mode == 0) return vec3(1.0);           // White monochrome
+    if (mode == 1) return vec3(0.1, 1.0, 0.3); // Green phosphor
+    if (mode == 2) return vec3(1.0, 0.5, 0.05); // Amber CRT
+    return camColor * 2.0;                     // Camera colors
 }
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
@@ -31,7 +32,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         getLuma(texture(iChannel0, vec2(uv.x + px*2.0, normI)).rgb) * 0.1;
 
     vec3 camColor = texture(iChannel0, vec2(uv.x, normI)).rgb;
-    float lineY = normI + luma * EXTRUSION;
+    float lineY = normI + luma * (EXTRUSION * uDistortion);
     float dist = abs(uv.y - lineY);
 
     float lineAlpha = 1.0 - smoothstep(0.0, LINE_WIDTH, dist);

@@ -68,3 +68,14 @@
   - Consolidated FPS summary: min `19.918130`, max `20.000256`, average `19.984995`.
   - Camera + EGL + OpenGL ES initialization completed successfully in both runs.
 - Prevention: when performance drifts, run a timed live check and compare against the ~20 FPS baseline.
+
+### [2026-02-27 09:33] Keyboard mapping for distortion and color modes
+- Goal: add interactive controls for distortion and color mode cycling.
+- Actions taken: added shader uniform `uDistortion`; wired Python controls for Arrow Left/Right (distortion step `0.05`, range `0.10..3.00`) and kept Arrow Up/Down for color modes.
+- Errors encountered: initial `ctypes` binding error on `glUniform1f` argument conversion.
+- Fix: pass `c_float(current_distortion)` to `glUniform1f`.
+- Concrete verification:
+  - Distortion key test: `[DISTORTION] 1.05x` observed after Arrow Right.
+  - Color key test: `[COLOR] Green phosphor` then `[COLOR] White` observed after Arrow Up/Down.
+  - Rendering remained stable around ~20 FPS during interactive tests.
+- Prevention: when adding new float uniforms through ctypes, always wrap scalar values with matching ctypes types.
