@@ -50,13 +50,16 @@ tex_unit = 0
 loc_channel0 = -1
 loc_color_mode = -1
 loc_distortion = -1
+loc_effect_mode = -1
 current_color_mode = 0
 current_distortion = 1.0
+current_effect_mode = 0
 DISTORTION_STEP = 0.05
 DISTORTION_MIN = 0.10
 DISTORTION_MAX = 3.00
 
 COLOR_MODE_NAMES = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
+EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
 
 _quiet_stdin_w = None
 
@@ -81,10 +84,11 @@ def _request_renderer_stop():
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
-    global tex_id, loc_channel0, loc_color_mode, loc_distortion
+    global tex_id, loc_channel0, loc_color_mode, loc_distortion, loc_effect_mode
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
     loc_distortion = glsl.glGetUniformLocation(program, b'uDistortion')
+    loc_effect_mode = glsl.glGetUniformLocation(program, b'uEffectMode')
 
     # Create the texture manually
     tid = c_uint(0)
@@ -106,9 +110,11 @@ def on_init(program, width, height):
         glsl.glUniform1i(loc_channel0, 0)
     if loc_distortion >= 0:
         glsl.glUniform1f(loc_distortion, c_float(current_distortion))
+    if loc_effect_mode >= 0:
+        glsl.glUniform1i(loc_effect_mode, current_effect_mode)
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
-    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: distortion')
+    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: distortion | E: effect mode')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -123,6 +129,8 @@ def on_render(frame, time):
         glsl.glUniform1i(loc_color_mode, current_color_mode)
     if loc_distortion >= 0:
         glsl.glUniform1f(loc_distortion, c_float(current_distortion))
+    if loc_effect_mode >= 0:
+        glsl.glUniform1i(loc_effect_mode, current_effect_mode)
 
 glsl.onInit(on_init)
 glsl.onRender(on_render)
@@ -155,7 +163,7 @@ def _decode_arrow(seq):
     }.get(seq[-1])
 
 def keyboard_thread():
-    global current_color_mode, current_distortion
+    global current_color_mode, current_distortion, current_effect_mode
     import termios, tty
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
@@ -177,6 +185,10 @@ def keyboard_thread():
             if ch == '\x03':  # Ctrl+C
                 _request_renderer_stop()
                 break
+            if ch in ('e', 'E'):
+                current_effect_mode = (current_effect_mode + 1) % len(EFFECT_MODE_NAMES)
+                print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]}        ')
+                continue
             if ch == '\x1b':
                 seq = _read_escape_sequence(fd)
                 direction = _decode_arrow(seq)

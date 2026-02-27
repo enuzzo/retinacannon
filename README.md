@@ -7,6 +7,7 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 - Live camera capture pipeline (Picamera2 + libcamera).
 - Real-time shader rendering with `kms-glsl`.
 - Interactive controls for color modes and distortion.
+- Dual effect mode: Rutt-Etra CRT + ASCII Cam.
 - Stable runtime baseline around 20 FPS on the current target setup.
 
 ## Requirements
@@ -22,6 +23,7 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 ## Controls
 - `Arrow Up/Down`: cycle color modes.
 - `Arrow Left/Right`: adjust distortion strength.
+- `E`: switch effect mode (Rutt-Etra / ASCII Cam).
 - `Ctrl+C`: stop rendering.
 
 ## Project Files
