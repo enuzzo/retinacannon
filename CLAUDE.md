@@ -131,7 +131,7 @@ On the target Raspberry Pi:
 
 - **Default view**: 16:9
 - **Rutt-Etra** color: `Prism Warp` (index 2)
-- **ASCII Cam** color: `Color symbols` (index 0)
+- **ASCII Cam** color: `Color symbols` (index 0), density 3.00
 - **Pixel Art** color: `Full Color` (index 0), block size 8px
 - **Signal Ghost** color: `Void` (index 0), field density 2.0
 - **Rutt wave**: 0.40 (range 0.40–3.80, step 0.10)
