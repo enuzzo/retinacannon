@@ -64,7 +64,7 @@ ASCII_DENSITY_MIN = 0.55
 ASCII_DENSITY_MAX = 2.40
 
 RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
-ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Monochrome letters', 'Color letters']
+ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono letters', 'Inverted color letters']
 EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
 
 _quiet_stdin_w = None

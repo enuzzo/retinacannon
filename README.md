@@ -30,7 +30,7 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 
 ## Color Modes
 - `Rutt-Etra`: `B/W`, `Colors`, `Prism Warp`, `Acid Melt`.
-- `ASCII Cam`: `Color symbols`, `Monochrome symbols`, `Monochrome letters`, `Color letters`.
+- `ASCII Cam`: `Color symbols`, `Monochrome symbols`, `Inverted mono letters`, `Inverted color letters`.
 
 ## Project Files
 - `retina_cannon.py`: main runtime and input handling.
