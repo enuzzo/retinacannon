@@ -1,0 +1,19 @@
+# External dependency repository (managed separately)
+glslViewer/
+
+# Local secrets and config
+config.h
+config.local.h
+secrets.h
+secrets.local.h
+.env
+.env.local
+secrets.local.yml
+secrets.local.yaml
+
+# Python/cache
+__pycache__/
+*.pyc
+
+# Local artifacts
+*.log
