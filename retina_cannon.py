@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, signal
+import sys, os, glob, threading, signal, select
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 
@@ -58,6 +58,17 @@ DISTORTION_MAX = 3.00
 
 COLOR_MODE_NAMES = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
 
+_quiet_stdin_w = None
+
+def _detach_stdin_from_renderer():
+    # kms-glsl treats any readable stdin as "user interrupted".
+    # Keep fd 0 on an idle pipe and read controls from /dev/tty instead.
+    global _quiet_stdin_w
+    rfd, wfd = os.pipe()
+    os.dup2(rfd, 0)
+    os.close(rfd)
+    _quiet_stdin_w = wfd
+
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
     global tex_id, loc_channel0, loc_color_mode, loc_distortion
@@ -107,37 +118,75 @@ glsl.onInit(on_init)
 glsl.onRender(on_render)
 
 # ---- Keyboard thread ----
+def _read_escape_sequence(fd, max_len=16, timeout=0.02):
+    # Collect bytes that follow ESC, including CSI params/modifiers.
+    seq = []
+    while len(seq) < max_len:
+        ready, _, _ = select.select([fd], [], [], timeout)
+        if not ready:
+            break
+        b = os.read(fd, 1)
+        if not b:
+            break
+        ch = b.decode('latin1', errors='ignore')
+        seq.append(ch)
+        if ch.isalpha() or ch == '~':
+            break
+    return ''.join(seq)
+
+def _decode_arrow(seq):
+    if not seq or seq[0] not in ('[', 'O'):
+        return None
+    return {
+        'A': 'up',
+        'B': 'down',
+        'C': 'right',
+        'D': 'left',
+    }.get(seq[-1])
+
 def keyboard_thread():
     global current_color_mode, current_distortion
     import termios, tty
-    fd = sys.stdin.fileno()
+    try:
+        fd = os.open('/dev/tty', os.O_RDONLY)
+    except OSError:
+        print('[Controls] /dev/tty unavailable, keyboard controls disabled')
+        return
+    if not os.isatty(fd):
+        os.close(fd)
+        print('[Controls] /dev/tty is not a TTY, keyboard controls disabled')
+        return
     old = termios.tcgetattr(fd)
     try:
         tty.setraw(fd)
         while True:
-            ch = sys.stdin.read(1)
+            b = os.read(fd, 1)
+            if not b:
+                continue
+            ch = b.decode('latin1', errors='ignore')
             if ch == '\x03':  # Ctrl+C
                 glsl.stop()
                 break
             if ch == '\x1b':
-                ch2 = sys.stdin.read(1)
-                if ch2 in ('[', 'O'):
-                    ch3 = sys.stdin.read(1)
-                    if ch3 == 'A':
-                        current_color_mode = (current_color_mode + 1) % 4
-                        print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
-                    elif ch3 == 'B':
-                        current_color_mode = (current_color_mode - 1) % 4
-                        print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
-                    elif ch3 == 'C':
-                        current_distortion = min(DISTORTION_MAX, current_distortion + DISTORTION_STEP)
-                        print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
-                    elif ch3 == 'D':
-                        current_distortion = max(DISTORTION_MIN, current_distortion - DISTORTION_STEP)
-                        print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
+                seq = _read_escape_sequence(fd)
+                direction = _decode_arrow(seq)
+                if direction == 'up':
+                    current_color_mode = (current_color_mode + 1) % 4
+                    print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
+                elif direction == 'down':
+                    current_color_mode = (current_color_mode - 1) % 4
+                    print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
+                elif direction == 'right':
+                    current_distortion = min(DISTORTION_MAX, current_distortion + DISTORTION_STEP)
+                    print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
+                elif direction == 'left':
+                    current_distortion = max(DISTORTION_MIN, current_distortion - DISTORTION_STEP)
+                    print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        os.close(fd)
 
+_detach_stdin_from_renderer()
 threading.Thread(target=keyboard_thread, daemon=True).start()
 
 # ---- Launch glsl ----
@@ -173,3 +222,5 @@ if sigwait({signal.SIGINT, signal.SIGCONT}) == signal.SIGINT:
 _running = False
 picam.stop()
 picam.close()
+if _quiet_stdin_w is not None:
+    os.close(_quiet_stdin_w)
