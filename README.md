@@ -42,3 +42,8 @@ Default startup modes:
 - `retina_cannon.py`: main runtime and input handling.
 - `rutt_etra.frag`: active shader effect.
 - `start_cannon.sh`: canonical launcher script.
+
+## License
+MIT License.
+
+Copyright (c) Netmilk Studio sagl

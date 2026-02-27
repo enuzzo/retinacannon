@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, select
+import sys, os, glob, threading, select, termios
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 
@@ -88,6 +88,26 @@ ANSI_MAGENTA = '\033[35m'
 ANSI_GREEN = '\033[32m'
 ANSI_YELLOW = '\033[33m'
 ANSI_RED = '\033[31m'
+ANSI_WHITE = '\033[37m'
+
+ANSI_RAINBOW = [
+    '\033[38;5;196m',  # red
+    '\033[38;5;208m',  # orange
+    '\033[38;5;226m',  # yellow
+    '\033[38;5;46m',   # green
+    '\033[38;5;51m',   # cyan
+    '\033[38;5;21m',   # blue
+    '\033[38;5;201m',  # magenta
+]
+
+RETINA_CANNON_ASCII = [
+    '__________        __  .__                _________                                     ',
+    '\\______   \\ _____/  |_|__| ____ _____    \\_   ___ \\_____    ____   ____   ____   ____  ',
+    ' |       _// __ \\   __\\  |/    \\\\__  \\   /    \\  \\/\\__  \\  /    \\ /    \\ /  _ \\ /    \\ ',
+    ' |    |   \\  ___/|  | |  |   |  \\/ __ \\_ \\     \\____/ __ \\|   |  \\   |  (  <_> )   |  \\',
+    ' |____|_  /\\___  >__| |__|___|  (____  /  \\______  (____  /___|  /___|  /\\____/|___|  /',
+    '        \\/     \\/             \\/     \\/          \\/     \\/     \\/     \\/            \\/ ',
+]
 
 def _styled(text, color='', bold=False, dim=False):
     style = ''
@@ -97,6 +117,13 @@ def _styled(text, color='', bold=False, dim=False):
         style += ANSI_DIM
     style += color
     return f'{style}{text}{ANSI_RESET}' if style else text
+
+def _print_retina_logo(offset=0):
+    for i, line in enumerate(RETINA_CANNON_ASCII):
+        color = ANSI_RAINBOW[(i + offset) % len(ANSI_RAINBOW)]
+        print(_styled(line, color, bold=True))
+    print(_styled('Copyright (c) Netmilk Studio sagl', ANSI_WHITE, dim=True))
+    print(_styled('Licensed under the MIT License', ANSI_WHITE, dim=True))
 
 def _detach_stdin_from_renderer():
     # kms-glsl treats any readable stdin as "user interrupted".
@@ -150,19 +177,17 @@ def _toggle_fps_logging():
 
 def _print_startup_banner():
     print()
-    print(_styled('============================================', ANSI_MAGENTA, bold=True))
-    print(_styled('        RETINA CANNON // BOOT SEQUENCE      ', ANSI_MAGENTA, bold=True))
-    print(_styled('============================================', ANSI_MAGENTA, bold=True))
+    _print_retina_logo(offset=0)
+    print(_styled('=== RETINA CANNON // BOOT SEQUENCE ===', ANSI_MAGENTA, bold=True))
     print(f'{_styled("[Startup]", ANSI_GREEN, bold=True)} Camera: {CAM_W}x{CAM_H} | View: {VIEW_MODE_NAMES[current_view_mode]}')
     print(f'{_styled("[Startup]", ANSI_GREEN, bold=True)} Rutt default: {RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]} | ASCII default: {ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]}')
     print(f'{_styled("[Controls]", ANSI_CYAN, bold=True)} Arrow Up/Down: cycle color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | V: view | F: fps log | Ctrl+C: quit')
-    print(_styled('============================================', ANSI_MAGENTA, bold=True))
+    print(_styled('======================================', ANSI_MAGENTA, bold=True))
 
 def _print_shutdown_banner(reason):
     print()
-    print(_styled('============================================', ANSI_YELLOW, bold=True))
-    print(_styled('        RETINA CANNON // SHUTDOWN           ', ANSI_YELLOW, bold=True))
-    print(_styled('============================================', ANSI_YELLOW, bold=True))
+    _print_retina_logo(offset=3)
+    print(_styled('=== RETINA CANNON // SHUTDOWN ===', ANSI_YELLOW, bold=True))
     print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Renderer stop requested.')
     print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Camera stream offline.')
     if reason == 'ctrl_c':
@@ -171,7 +196,7 @@ def _print_shutdown_banner(reason):
         print(f'{_styled("[Goodbye]", ANSI_RED, bold=True)} Exit with error ({reason}).')
     else:
         print(f'{_styled("[Goodbye]", ANSI_GREEN, bold=True)} Session closed. See you on the next visual test.')
-    print(_styled('============================================', ANSI_YELLOW, bold=True))
+    print(_styled('================================', ANSI_YELLOW, bold=True))
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
@@ -277,6 +302,17 @@ def _read_escape_sequence(fd, max_len=32, timeout=0.08):
             break
     return ''.join(seq)
 
+def _set_keyboard_mode(fd):
+    # Keep output processing intact (avoid broken/newline-shifted logs),
+    # while reading single keys and escape sequences from the terminal.
+    old = termios.tcgetattr(fd)
+    new = termios.tcgetattr(fd)
+    new[3] &= ~(termios.ICANON | termios.ECHO | termios.ISIG)
+    new[6][termios.VMIN] = 1
+    new[6][termios.VTIME] = 0
+    termios.tcsetattr(fd, termios.TCSADRAIN, new)
+    return old
+
 def _decode_arrow(seq):
     if not seq:
         return None
@@ -296,7 +332,7 @@ def _decode_arrow(seq):
 def keyboard_thread():
     global current_rutt_wave, current_ascii_density
     global current_effect_mode, current_view_mode, _ctrl_c_requested
-    import termios, tty
+    import termios
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
     except OSError:
@@ -306,9 +342,8 @@ def keyboard_thread():
         os.close(fd)
         print('[Controls] /dev/tty is not a TTY, keyboard controls disabled')
         return
-    old = termios.tcgetattr(fd)
+    old = _set_keyboard_mode(fd)
     try:
-        tty.setraw(fd)
         while True:
             b = os.read(fd, 1)
             if not b:
