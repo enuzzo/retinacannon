@@ -114,7 +114,7 @@ def on_init(program, width, height):
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
-    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: distortion | E: effect mode')
+    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: peak height | Space: effect mode')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -185,7 +185,7 @@ def keyboard_thread():
             if ch == '\x03':  # Ctrl+C
                 _request_renderer_stop()
                 break
-            if ch in ('e', 'E'):
+            if ch == ' ':
                 current_effect_mode = (current_effect_mode + 1) % len(EFFECT_MODE_NAMES)
                 print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]}        ')
                 continue
@@ -200,10 +200,10 @@ def keyboard_thread():
                     print(f'\r[COLOR] {COLOR_MODE_NAMES[current_color_mode]}        ')
                 elif direction == 'right':
                     current_distortion = min(DISTORTION_MAX, current_distortion + DISTORTION_STEP)
-                    print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
+                    print(f'\r[PEAK] {current_distortion:.2f}x        ')
                 elif direction == 'left':
                     current_distortion = max(DISTORTION_MIN, current_distortion - DISTORTION_STEP)
-                    print(f'\r[DISTORTION] {current_distortion:.2f}x        ')
+                    print(f'\r[PEAK] {current_distortion:.2f}x        ')
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
         os.close(fd)

@@ -22,8 +22,8 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 
 ## Controls
 - `Arrow Up/Down`: cycle color modes.
-- `Arrow Left/Right`: adjust distortion strength.
-- `E`: switch effect mode (Rutt-Etra / ASCII Cam).
+- `Arrow Left/Right`: adjust peak height.
+- `Space`: switch effect mode (Rutt-Etra / ASCII Cam).
 - `Ctrl+C`: stop rendering.
 
 ## Project Files
