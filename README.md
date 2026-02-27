@@ -1,23 +1,33 @@
 # Retina Cannon
 
 > _"What if I took the live camera feed and ran it through a shader that makes everything look like a 1970s vector art fever dream?"_
-> — someone who had clearly seen too many Rutt-Etra videos at 2am.
+> — someone who had clearly watched too many Rutt-Etra videos at 2am and owned a Raspberry Pi.
 
-**Retina Cannon** is a real-time camera-to-shader visual engine for Raspberry Pi. It grabs the live Pi Camera feed, pushes it through a GLSL pipeline, and renders the output directly via DRM/KMS + OpenGL ES — no X11, no Wayland, no excuses. Straight to the framebuffer, the way nature intended.
+**Retina Cannon** is a real-time camera-to-shader visual engine for Raspberry Pi.
 
-The result? Reality filtered through the aesthetic of a 1970s graphics machine that dropped acid. Or rendered in ASCII. Depends on the mood.
+This is not a camera filter app. Camera filter apps have sliders and a share button. This has a GLSL pipeline, a bare-metal DRM/KMS renderer, and a keyboard thread that intercepts Ctrl+C before the OS even knows it happened.
+
+It grabs live video from the Pi Camera, feeds every frame into a fragment shader running on the GPU, and blasts the result fullscreen — no X server, no compositor, no display manager asking if you're sure. Just OpenGL ES talking directly to the display hardware, the way it was meant to be.
 
 ---
 
 ## What it does
 
-Two main effects, switchable on the fly:
+Two effects, switchable live:
 
 ### Rutt-Etra CRT
-Inspired by the [Rutt/Etra Scan Processor](https://en.wikipedia.org/wiki/Rutt/Etra_Video_Synthesizer) — a 1973 analog video synthesizer that deflected scan lines based on the luminance of the signal. Same concept, GLSL, Raspberry Pi, 20 FPS. Frame luminance warps the scan lines, adds CRT curvature, vignette, grain. Your face becomes an oscilloscope.
+
+In 1973, [Bill Rutt and Steve Etra](https://en.wikipedia.org/wiki/Rutt/Etra_Video_Synthesizer) built an analog video synthesizer that deflected scan lines based on the luminance of the incoming signal. It cost as much as a car, weighed as much as a refrigerator, and produced visuals that looked like the world was made of oscilloscope traces.
+
+This is the same thing. In GLSL. On a $40 computer. Running at 20 FPS.
+
+Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field. It is deeply unsettling in the best possible way.
 
 ### ASCII Cam
-Maps every camera pixel to a glyph from an 8×8 bitmap font hardcoded in the shader. Luminance picks the character. The result is that thing you watched on YouTube in 2007, now running in real time on hardware that costs €40.
+
+Every camera pixel gets mapped to a glyph from an 8×8 bitmap font hardcoded inside the shader itself. Luminance picks the character. The whole thing runs on the GPU, in real time, with no CPU involvement in the actual rendering.
+
+It's that thing you watched on YouTube in 2007, convinced someone had spent weeks on it. It runs here at 20 FPS on hardware you can power from a phone charger.
 
 ---
 
@@ -28,22 +38,28 @@ Pi Camera (BGR888, 1640×1232)
     │
     │  Picamera2 + libcamera
     ▼
-capture thread  ──(threading.Lock)──▶  frame buffer
+capture thread  ──(threading.Lock)──▶  latest frame
                                             │
-                                  render callback (C)
+                                  C render loop (kms-glsl)
                                             │
-                                    glTexSubImage2D
+                                  Python render callback
+                                            │
+                                  glTexSubImage2D  ← upload frame to GPU
                                             │
                                   GLSL fragment shader
                                             │
-                                  DRM/KMS output (fullscreen)
+                                  DRM/KMS output (fullscreen, no windowing system)
 ```
 
-- **Capture** — daemon thread runs continuously, always holds the freshest frame behind a lock. The render loop never blocks waiting for a new frame.
-- **Render** — `kms-glsl`'s C loop calls a Python callback every frame. That's where the texture gets uploaded and uniforms get set (color mode, wave, density, effect, camera aspect ratio).
-- **Shader** — all the visual logic lives in `rutt_etra.frag`. Python passes parameters, the GPU does the actual work.
-- **Keyboard** — separate thread on `/dev/tty` in raw mode, `ICANON`/`ECHO`/`ISIG` all off. Ctrl+C arrives as `\x03` instead of SIGINT, which lets the C render loop shut down cleanly without drama.
-- **stdin** — replaced with a silent pipe at startup, so `kms-glsl` doesn't interpret terminal activity as "something weird happened".
+**Capture** — a daemon thread runs continuously and keeps the latest frame behind a lock. The render loop always gets the freshest frame available and never blocks waiting for one.
+
+**Render** — `kms-glsl`'s C loop fires a Python callback every frame. That callback uploads the texture and sets all the GLSL uniforms: color mode, wave intensity, character density, effect mode, view mode, camera aspect ratio. Python orchestrates; the GPU executes.
+
+**Shader** — all visual logic lives in `rutt_etra.frag`. It is a single fragment shader that implements two completely different visual systems and switches between them via a uniform. The CPU has no idea what's happening visually and that's fine.
+
+**Keyboard** — a separate thread reads from `/dev/tty` with `ICANON`, `ECHO`, and `ISIG` all disabled. This means the kernel's job of turning Ctrl+C into a SIGINT is explicitly circumvented. The signal arrives as raw `\x03` bytes, caught in Python, used to trigger a graceful shutdown. This is not an accident.
+
+**stdin** — replaced with a silent pipe at startup. Without this, `kms-glsl`'s C code would interpret terminal activity on fd 0 as user input and behave unpredictably. The write end of the pipe doubles as the shutdown signal mechanism. Two problems, one ugly-but-effective solution.
 
 ---
 
@@ -51,16 +67,18 @@ capture thread  ──(threading.Lock)──▶  frame buffer
 
 - Raspberry Pi with camera support enabled
 - `python3`, `libcamera`, `picamera2`
-- [`kms-glsl`](https://github.com/keithzg/kms-glsl) in one of these locations:
+- [`kms-glsl`](https://github.com/keithzg/kms-glsl) — the C rendering backbone, expected in one of:
   - `KMS_GLSL_DIR` environment variable
-  - `../kms-glsl` sibling directory (recommended)
+  - `../kms-glsl` sibling directory ← recommended
   - `~/kms-glsl`
 
-Recommended layout:
+Recommended layout on the Pi:
 ```
 ~/kms-glsl/       ← external dependency
 ~/retinacannon/   ← this repo
 ```
+
+If `kms-glsl` is missing, the launcher prints `[FATAL]` and exits. No cryptic import errors, no silent hangs.
 
 ---
 
@@ -70,13 +88,13 @@ Recommended layout:
 ./start_cannon.sh
 ```
 
-With a specific shader:
+Specific shader:
 ```bash
 ./run_rutt.sh     # Rutt-Etra (default)
-./run_base.sh     # raw camera passthrough
+./run_base.sh     # raw camera passthrough, for when you just want to see if the camera works
 ```
 
-With kms-glsl in a non-standard location:
+Non-standard `kms-glsl` location:
 ```bash
 KMS_GLSL_DIR=/path/to/kms-glsl ./start_cannon.sh
 ```
@@ -89,10 +107,12 @@ KMS_GLSL_DIR=/path/to/kms-glsl ./start_cannon.sh
 |---|---|
 | `↑` / `↓` | Cycle color mode |
 | `←` / `→` | Rutt-Etra: wave intensity — ASCII: character density |
-| `Space` | Toggle effect (Rutt-Etra ↔ ASCII Cam) |
+| `Space` | Switch effect (Rutt-Etra ↔ ASCII Cam) |
 | `V` | Cycle view mode (16:9 → 4:3 → Fisheye) |
 | `F` | Toggle FPS logging to terminal |
 | `Ctrl+C` | Clean shutdown |
+
+Arrow keys work with both `ESC [` and `ESC O` escape sequences, because terminal emulators are an ungoverned wilderness and standardization is aspirational.
 
 ---
 
@@ -102,35 +122,29 @@ KMS_GLSL_DIR=/path/to/kms-glsl ./start_cannon.sh
 
 **ASCII Cam** — `Color symbols` · `Monochrome symbols` · `Inverted mono` · `Inverted color`
 
-Defaults: Rutt starts on `Prism Warp`, ASCII on `Color symbols`. Both chosen by someone with a clear sense of visual drama.
+Default startup: Rutt on `Prism Warp`, ASCII on `Color symbols`. Both picked by someone with strong opinions about what looks good at a gallery opening.
 
 ---
 
 ## Performance
 
-~20 FPS on target hardware. Stable, verified. Not 60 FPS — but the original Rutt-Etra didn't do 60 FPS either, and that thing cost as much as a car.
+~20 FPS on target hardware. Consistent. Measured. The original Rutt-Etra ran at whatever frame rate the video signal had. This runs at whatever the GPU and DRM pipeline can sustain. Same aesthetic; fractionally lower barrier to entry.
 
 ---
 
-## Developer notes
+## Notes for developers
 
-- Float uniforms passed via ctypes **must be wrapped with `c_float()`**. If the image turns into a mosaic of cosmic glitches, you probably forgot this.
-- The arrow key parser handles both `ESC [` and `ESC O` prefixes — because terminals are a chaotic ecosystem and no standard is ever truly standard.
-- Globals like `current_rutt_wave` and `current_effect_mode` are written from the keyboard thread and read from the render callback with no extra locks. CPython's GIL makes these reads atomically safe. Not a bug, a deliberate design decision.
+**`c_float()` is not optional.** Float uniforms passed to OpenGL via ctypes must be explicitly wrapped. If you skip it, the GPU receives garbage and the image becomes a psychedelic disaster. Impressive, but not what you wanted.
 
----
+**The GIL is load-bearing here.** Globals like `current_rutt_wave` and `current_effect_mode` are written by the keyboard thread and read by the render callback with no explicit locking. CPython's GIL makes these reads atomically safe. If you port this to a free-threaded Python build, add locks. You have been warned.
 
-## Testing
+**Testing without Pi hardware** will fail immediately. `Picamera2` won't import, EGL won't initialize, and `kms-glsl` will complain about the absence of a DRM device. This is correct behavior.
 
-Without Pi hardware (camera + DRM/KMS display) the project won't start. That's expected.
-
-What works anywhere:
+Syntax checks that work anywhere:
 ```bash
-python3 -m py_compile retina_cannon.py  # syntax check
-bash -n start_cannon.sh                 # shell syntax check
+python3 -m py_compile retina_cannon.py
+bash -n start_cannon.sh
 ```
-
-On Pi: run `./start_cannon.sh`, verify ~20 FPS, test all controls.
 
 ---
 
@@ -138,4 +152,4 @@ On Pi: run `./start_cannon.sh`, verify ~20 FPS, test all controls.
 
 MIT — [Netmilk Studio sagl](https://netmilk.studio)
 
-Do what you want. Credit if you can. Don't break anything important.
+Do what you want with it. Attribution appreciated. Don't blame us if it runs at an art show and someone asks you to explain what a fragment shader is.
