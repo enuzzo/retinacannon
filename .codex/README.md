@@ -1,16 +1,16 @@
-# .codex - guida breve
+# .codex - quick guide
 
-`MEMORY.md`: regole stabili, decisioni tecniche, checklist.
+`MEMORY.md`: stable rules, technical decisions, and checklist.
 
-`SESSION_LOG.md`: diario append-only di errori/fix/verifiche.
+`SESSION_LOG.md`: append-only diary for errors/fixes/verifications.
 
-Rituale inizio sessione:
-1. Leggi `MEMORY.md`.
-2. Leggi ultime 2 entry di `SESSION_LOG.md`.
+Session start ritual:
+1. Read `MEMORY.md`.
+2. Read the last 2 entries of `SESSION_LOG.md`.
 
-Rituale fine sessione:
-1. Appendi una nuova entry in `SESSION_LOG.md`.
-2. Aggiorna `MEMORY.md` solo per regole davvero stabili.
+Session end ritual:
+1. Append a new entry to `SESSION_LOG.md`.
+2. Update `MEMORY.md` only for truly stable rules.
 
-Divieto assoluto:
-- Non scrivere mai password/token/chiavi in `.codex/*`.
+Absolute prohibition:
+- Never write passwords/tokens/keys in `.codex/*`.

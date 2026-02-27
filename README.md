@@ -1,16 +1,16 @@
 # Retina Cannon
 
-Progetto locale per rendering shader/camera con script Python e shell.
+Local project for shader/camera rendering with Python and shell scripts.
 
-## Struttura
-- Shader e script runtime in questa root (`*.frag`, `retina_cannon.py`, `start_cannon.sh`).
-- `glslViewer/` e' trattata come dipendenza esterna locale (repo separata, non versionata qui).
-- `.codex/` contiene memoria operativa e diario sessioni.
+## Structure
+- Runtime shaders and scripts are in this root (`*.frag`, `retina_cannon.py`, `start_cannon.sh`).
+- `glslViewer/` is treated as an external local dependency (separate repo, not versioned here).
+- `.codex/` stores operational memory and session logs.
 
-## Avvio rapido
-1. Verifica prerequisiti grafici/camera su host.
-2. Esegui: `/home/enuzzo/retinacannon/start_cannon.sh`
+## Quick start
+1. Verify graphics/camera prerequisites on the host.
+2. Run: `/home/enuzzo/retinacannon/start_cannon.sh`
 
-## Sicurezza
-- Nessun segreto in file versionati.
-- Segreti solo in file locali ignorati (`config.local.h`, `.env.local`, ecc).
+## Security
+- No secrets in versioned files.
+- Secrets only in ignored local files (`config.local.h`, `.env.local`, etc.).

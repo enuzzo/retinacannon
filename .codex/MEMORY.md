@@ -1,35 +1,35 @@
 # MEMORY - Retina Cannon
 
-## Prime direttive
-- Non salvare segreti in chiaro in file versionati, log, output o commit message.
-- Inizio sessione: leggere questo file + ultime 2 entry di `SESSION_LOG.md`.
-- Fare solo modifiche minime, verificabili, coerenti con il progetto.
-- Non cambiare logica applicativa senza richiesta esplicita.
+## Core directives
+- Never store plaintext secrets in versioned files, logs, output, or commit messages.
+- Session start: read this file plus the last 2 entries in `SESSION_LOG.md`.
+- Keep changes minimal, verifiable, and aligned with project goals.
+- Do not change application logic without an explicit request.
 
-## Preferenze di lavoro
-- Ispezione iniziale: struttura, sicurezza, stato git.
-- Verifica concreta prima di chiudere (run/build/lint/grep).
-- Patch piccole e con uno scopo chiaro.
+## Working preferences
+- Start with quick inspection: structure, security, git status.
+- Run at least one concrete verification before closing (run/build/lint/grep).
+- Keep patches small and single-purpose.
 
-## Decisioni tecniche consolidate
-- Repo principale: `/home/enuzzo/retinacannon` (questa root).
-- Stack runtime: shader `.frag` + script Python/shell.
-- Dipendenza esterna: `glslViewer/` (gestita come repo separata locale).
-- Comando run principale: `/home/enuzzo/retinacannon/start_cannon.sh`.
+## Consolidated technical decisions
+- Main repository: `/home/enuzzo/retinacannon` (this root).
+- Runtime stack: `.frag` shaders + Python/shell scripts.
+- External dependency: `glslViewer/` (managed as a separate local repo).
+- Main run command: `/home/enuzzo/retinacannon/start_cannon.sh`.
 
-## Sicurezza e segreti
-- Regola: segreti solo in file locali ignorati (`config.local.h`, `.env.local`, ecc).
-- Template eventualmente versionati devono essere puliti (`config.example.h`, `.env.example`).
-- `.codex/*` non deve contenere credenziali; usare placeholder come `<WIFI_PASSWORD>`.
+## Security and secrets
+- Rule: secrets live only in ignored local files (`config.local.h`, `.env.local`, etc.).
+- Any versioned templates must stay clean (`config.example.h`, `.env.example`).
+- `.codex/*` must not include credentials; use placeholders like `<WIFI_PASSWORD>`.
 
-## Gotcha ricorrenti
-- Runtime grafico puo' fallire se manca piattaforma GLFW/display. (verificato)
-- `glslViewer/` qui e' una repo annidata, non parte di questa repo root. (verificato)
+## Recurring gotchas
+- Graphics runtime can fail when GLFW/display platform is unavailable. (verified)
+- `glslViewer/` here is a nested repo, not part of this root repo history. (verified)
 
-## Checklist pre-flight
-- [ ] Leggere `MEMORY.md`.
-- [ ] Leggere ultime 2 entry di `SESSION_LOG.md`.
-- [ ] Verificare `git status`.
-- [ ] Cercare possibili segreti con scan mirata.
-- [ ] Testare almeno un comando reale prima del commit.
-- [ ] Append log di fine sessione.
+## Pre-flight checklist
+- [ ] Read `MEMORY.md`.
+- [ ] Read the last 2 entries in `SESSION_LOG.md`.
+- [ ] Check `git status`.
+- [ ] Run a targeted secret scan.
+- [ ] Test at least one real command before commit.
+- [ ] Append an end-of-session log entry.
