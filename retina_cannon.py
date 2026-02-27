@@ -61,21 +61,28 @@ def _capture_loop():
         f = picam.capture_array()
         with _lock:
             _frame = f
-        # Motion & presence detection at 1/16 resolution — camera is BGR888
+        # Motion & presence detection — camera is BGR888, downsample to ~200×150
         try:
-            S = 16
+            S = 8
             small = f[::S, ::S]
-            # luma from BGR: R=ch2, G=ch1, B=ch0
-            luma = (0.299 * small[:,:,2] + 0.587 * small[:,:,1] + 0.114 * small[:,:,0]).astype(np.float32) / 255.0
+            luma = (0.299 * small[:,:,2] + 0.587 * small[:,:,1]
+                    + 0.114 * small[:,:,0]).astype(np.float32) / 255.0
             _presence_scale = float(np.mean(luma))
             if _prev_luma_small is not None and _prev_luma_small.shape == luma.shape:
                 diff = np.abs(luma - _prev_luma_small)
-                _motion_level = float(np.clip(np.mean(diff) * 14.0, 0.0, 1.0))
-            # Weighted centroid of bright regions
-            thresh = max(_presence_scale * 1.3, 0.10)
-            bright = np.where(luma > thresh, luma, 0.0)
+                # Dead-zone: ignore camera sensor noise (< 3% per pixel)
+                significant = np.where(diff > 0.03, diff - 0.03, 0.0)
+                raw = float(np.clip(np.mean(significant) * 30.0, 0.0, 1.0))
+                # Asymmetric smoothing: fast attack, slow decay
+                if raw > _motion_level:
+                    _motion_level = raw * 0.65 + _motion_level * 0.35
+                else:
+                    _motion_level = raw * 0.08 + _motion_level * 0.92
+            # Weighted centroid of above-average regions
+            thresh = max(_presence_scale * 1.25, 0.08)
+            bright = np.where(luma > thresh, luma - thresh, 0.0)
             total = bright.sum()
-            if total > 0:
+            if total > 0.001:
                 h, w = luma.shape
                 ys, xs = np.mgrid[0:h, 0:w]
                 _presence_cx = float((xs * bright).sum() / total / w)

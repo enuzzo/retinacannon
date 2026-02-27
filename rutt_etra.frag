@@ -522,104 +522,115 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
 //  uAsciiDensity: field density (0.5 → 5.0), left/right arrow
 
 vec3 renderSignalGhost(vec2 uv, vec2 fragCoord) {
-    float presence = clamp(uPresenceScale * 2.2, 0.0, 1.0);
     float motion   = clamp(uMotionLevel, 0.0, 1.0);
+    float presence = clamp(uPresenceScale * 1.6, 0.0, 1.0);
     vec2  presPos  = vec2(uPresenceCX, uPresenceCY);
 
-    // Flow field: smooth UV warp that stirs with motion and presence
-    vec2 flow = vec2(
-        sin(iTime * 0.22 + uv.y * 5.1 + uPresenceCY * 3.14) * 0.018,
-        cos(iTime * 0.17 + uv.x * 4.3 + uPresenceCX * 3.14) * 0.014
-    ) * (0.4 + motion * 2.5 + presence * 0.6);
-
-    // Radial pull toward presence centroid — letters lean in when you approach
-    vec2 toPresence = presPos - uv;
-    flow += normalize(toPresence + vec2(0.001)) * motion * 0.022;
-
-    vec2 wUV = uv + flow;
-
-    // Grid
-    float cols = 8.0 + uAsciiDensity * 7.0;          // 11 – 43 columns
-    float rows = floor(cols * iResolution.y / iResolution.x * 0.65);
+    // Grid: density from left/right arrows
+    float cols     = 10.0 + uAsciiDensity * 6.0;     // ~13–40 columns
+    float rows     = floor(cols * iResolution.y / iResolution.x * 0.72);
     vec2  cellCount = vec2(cols, max(rows, 8.0));
-    vec2  gridUV    = wUV * cellCount;
-    vec2  cellId    = floor(gridUV);
-    vec2  cellUV    = fract(gridUV);                  // 0..1 within cell
+    vec2  cellSize  = 1.0 / cellCount;
 
-    // Per-cell personality
+    vec2  cellId    = floor(uv * cellCount);
+    vec2  cellUV    = fract(uv * cellCount);          // 0..1 within cell
+    vec2  cellCenter = (cellId + 0.5) * cellSize;
+
+    // Per-cell random personality
     float ch  = hash12(cellId);
     float ch2 = hash12(cellId * 2.3 + 1.7);
 
-    // Sample camera at this cell's position for color and local energy
-    vec2 sampleUV = safeUV((cellId + 0.5) / cellCount);
-    vec3 camCol   = texture(iChannel0, sampleUV).bgr;  // BGR→RGB
-    float cellLuma = liftShadowLuma(getLuma(camCol));
+    // -- SCALE --
+    // Tiny at rest. Each cell has its own motion phase offset so the
+    // "explosion" on movement ripples across the field like a wave,
+    // rather than all letters growing at the same moment.
+    float breathe     = 0.5 + 0.5 * sin(iTime * (0.28 + ch * 0.55) + ch * 6.28);
+    float baseline    = 0.07 + breathe * 0.04;        // 0.07–0.11 at rest
 
-    // Letter: changes faster during motion, each cell staggered by ch
-    float changeRate = 0.06 + motion * 5.0 + presence * 0.8;
-    float slot       = floor(iTime * changeRate + ch * 8.0);
-    int   letter     = clamp(int(floor(hash12(cellId + vec2(slot * 0.09, slot * 0.13)) * 26.0)), 0, 25);
+    // Per-cell motion burst: staggered phase so different letters peak
+    // at different moments → organic wave feeling
+    float phaseOffset = ch * 6.28 + ch2 * 3.14;
+    float burst       = 0.5 + 0.5 * sin(iTime * (4.0 + ch * 3.0) + phaseOffset);
+    float motionBoost = motion * burst * (0.5 + ch * 0.5) * 1.2;
 
-    // Scale: breathes slowly; expands when someone is present or moving
-    float breathe = 0.5 + 0.5 * sin(iTime * (0.35 + ch * 0.9) + ch * 6.28);
-    float scale   = clamp(
-        0.12 + breathe * 0.14 + presence * 0.55 + cellLuma * 0.35 + motion * ch * 0.22,
-        0.06, 1.05
-    );
+    // Proximity to detected centroid amplifies reaction
+    float distToP    = length(cellCenter - presPos);
+    float proximity  = 1.0 / (distToP * cellCount.x * 0.6 + 1.0);
+    float presBoost  = presence * proximity * 0.18;
 
-    // Wobble offset within cell driven by motion
-    vec2 wobble = vec2(ch - 0.5, ch2 - 0.5) * motion * 0.18;
+    float scale = clamp(baseline + motionBoost + presBoost, 0.04, 0.96);
+
+    // -- LETTER SELECTION --
+    // Slow cycling at rest. Fast scramble during motion.
+    float changeRate = 0.04 + motion * (3.0 + ch * 4.0);
+    float slot       = floor(iTime * changeRate + ch * 11.0);
+    int   letter     = clamp(int(floor(
+        hash12(cellId + vec2(slot * 0.13, slot * 0.09)) * 26.0
+    )), 0, 25);
+
+    // -- WOBBLE --
+    // Letters shift off-center during motion (more in high-motion cells)
+    vec2 wobble  = vec2(ch - 0.5, ch2 - 0.5) * motion * burst * 0.22;
     vec2 letterUV = (cellUV - 0.5 - wobble) / scale + 0.5;
 
     float ink = 0.0;
-    if (letterUV.x >= 0.0 && letterUV.x < 1.0 && letterUV.y >= 0.0 && letterUV.y < 1.0) {
+    if (letterUV.x >= 0.0 && letterUV.x < 1.0 &&
+        letterUV.y >= 0.0 && letterUV.y < 1.0) {
         ink = glyphUpperInk(clamp(letterUV, 0.0, 0.999), letter);
     }
 
-    float glow = smoothstep(0.0, 0.45, ink) * (0.25 + cellLuma * 0.35 + presence * 0.40);
+    // Soft glow halo around each letter during motion
+    float glow = ink * motion * burst * proximity * 0.45;
+
+    // Camera sample for color modes
+    vec2 sampleUV  = safeUV(cellCenter);
+    vec3 camCol    = texture(iChannel0, sampleUV).bgr;
+    float cellLuma = liftShadowLuma(getLuma(camCol));
+
+    // Base brightness: visible at rest, vivid during motion
+    float bright = 0.35 + motion * burst * 0.65 + presence * 0.15;
 
     vec3 col;
 
     if (uColorMode == 0) {
         // ── Void: white on black ────────────────────────────────────────────
-        float v = ink * (0.55 + presence * 0.45) + glow * 0.18;
-        col = vec3(v);
+        col = vec3(ink * bright + glow * 0.25);
 
     } else if (uColorMode == 1) {
         // ── Matrix: green terminal ───────────────────────────────────────────
-        float g = ink * (0.45 + cellLuma * 0.35 + presence * 0.20);
-        col = vec3(g * 0.15, g, g * 0.08);
-        col += vec3(0.0, glow * 0.12, 0.0);
+        float g = ink * bright;
+        col  = vec3(g * 0.12, g, g * 0.06);
+        col += vec3(0.0, glow * 0.20, 0.0);
 
     } else if (uColorMode == 2) {
-        // ── Ghost Cam: letters tinted by camera, dim ghost bg ────────────────
-        col  = camCol * ink * (0.55 + presence * 0.45);
-        col += camCol * 0.06;                          // very dim camera ghost
+        // ── Ghost Cam: letters tinted by camera, faint bg ───────────────────
+        col  = camCol * ink * bright;
+        col += camCol * 0.04;
 
     } else if (uColorMode == 3) {
-        // ── Neon: position-driven hue, glowing ──────────────────────────────
-        float hue = fract(uv.x * 0.4 + uv.y * 0.25 + iTime * 0.04 + motion * 0.25);
+        // ── Neon: per-cell hue that shifts on motion ─────────────────────────
+        float hue = fract(ch + motion * burst * 0.4 + iTime * 0.025);
         vec3  c   = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-        col = c * ink * (0.75 + presence * 0.25);
-        col += c * glow * 0.35;
+        col  = c * ink * bright;
+        col += c * glow * 0.40;
 
     } else if (uColorMode == 4) {
-        // ── Thermal: FLIR jet per cell luminance ─────────────────────────────
+        // ── Thermal: FLIR jet per cell luma ─────────────────────────────────
         float t = cellLuma;
         float r = clamp(1.5 - abs(4.0 * t - 3.0), 0.0, 1.0);
         float g = clamp(1.5 - abs(4.0 * t - 2.0), 0.0, 1.0);
         float b = clamp(1.5 - abs(4.0 * t - 1.0), 0.0, 1.0);
-        vec3  tc = mix(vec3(r, g, b), vec3(1.0), smoothstep(0.88, 1.0, cellLuma));
-        col  = tc * ink * (0.7 + presence * 0.3);
-        col += tc * glow * 0.20;
+        vec3  tc = mix(vec3(r, g, b), vec3(1.0), smoothstep(0.88, 1.0, t));
+        col  = tc * ink * bright;
+        col += tc * glow * 0.25;
 
     } else {
-        // ── Chromatic: RGB channels offset by motion ─────────────────────────
-        float shift = motion * 0.010;
+        // ── Chromatic: RGB split driven by motion burst ──────────────────────
+        float shift = motion * burst * 0.014;
         float rL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV + vec2( shift, 0.0))).bgr));
-        float bL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).bgr));
-        col  = vec3(ink * rL, ink * cellLuma, ink * bL) * (0.8 + presence * 0.5 + motion * 0.3);
-        col += glow * vec3(0.08, 0.0, 0.18);
+        float bL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV - vec2( shift, 0.0))).bgr));
+        col  = vec3(ink * rL, ink * cellLuma, ink * bL) * bright;
+        col += glow * vec3(0.12, 0.0, 0.22);
     }
 
     return clamp(col, 0.0, 1.0);
