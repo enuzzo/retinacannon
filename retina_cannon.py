@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, select, termios
+import sys, os, glob, threading, select, termios, signal
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 
@@ -210,7 +210,7 @@ def _print_shutdown_banner(reason):
     print(_styled('=== RETINA CANNON // SHUTDOWN ===', ANSI_YELLOW, bold=True))
     print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Renderer stop requested.')
     print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Camera stream offline.')
-    if reason == 'ctrl_c':
+    if reason in ('ctrl_c', 'signal'):
         print(f'{_styled("[Goodbye]", ANSI_CYAN, bold=True)} Target lost, cannon reloading. See you on the next run.')
     elif reason.startswith('init_error') or reason.startswith('run_error'):
         print(f'{_styled("[Goodbye]", ANSI_RED, bold=True)} Exit with error ({reason}).')
@@ -364,7 +364,10 @@ def keyboard_thread():
         return
     old = _set_keyboard_mode(fd)
     try:
-        while True:
+        while _running:
+            ready, _, _ = select.select([fd], [], [], 0.5)
+            if not ready:
+                continue
             b = os.read(fd, 1)
             if not b:
                 continue
@@ -411,6 +414,16 @@ def keyboard_thread():
         os.close(fd)
 
 _detach_stdin_from_renderer()
+
+# ---- Signal handlers — graceful shutdown from kill/SSH disconnect ----
+def _handle_signal(signum, frame):
+    global _ctrl_c_requested
+    _ctrl_c_requested = True
+    _request_renderer_stop()
+
+signal.signal(signal.SIGTERM, _handle_signal)
+signal.signal(signal.SIGHUP, _handle_signal)
+
 threading.Thread(target=keyboard_thread, daemon=True).start()
 
 # ---- Launch glsl ----
