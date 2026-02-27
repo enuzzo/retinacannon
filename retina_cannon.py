@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, select, termios, signal
+import sys, os, glob, threading, select, termios, signal, subprocess, random
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 
@@ -99,6 +99,21 @@ _fps_last_time = None
 _fps_smoothed = 0.0
 _fps_last_report_time = None
 _ctrl_c_requested = False
+_session_start = None
+_shader_name = ''
+
+_BOOT_QUOTES = [
+    '"The map is not the territory."  — Korzybski',
+    '"The medium is the message."  — McLuhan',
+    '"Television is not the truth."  — Paddy Chayefsky, Network (1976)',
+    '"Reality is merely an illusion, albeit a persistent one."  — Einstein',
+    '"All models are wrong. Some are useful."  — George Box',
+    '"We shape our tools, and thereafter our tools shape us."  — McLuhan',
+    '"Seeing is forgetting the name of the thing one sees."  — Paul Valéry',
+    '"The screen is the new canvas."  — Netmilk Studio',
+]
+
+_BLOCK_CHARS = '░▒▓█▓▒░'
 
 ANSI_RESET = '\033[0m'
 ANSI_BOLD = '\033[1m'
@@ -128,6 +143,42 @@ RETINA_CANNON_ASCII = [
     ' |____|_  /\\___  >__| |__|___|  (____  /  \\______  (____  /___|  /___|  /\\____/|___|  /',
     '        \\/     \\/             \\/     \\/          \\/     \\/     \\/     \\/            \\/ ',
 ]
+
+def _sys_stat():
+    s = {}
+    try:
+        s['host'] = open('/etc/hostname').read().strip()
+    except Exception:
+        pass
+    try:
+        raw = subprocess.check_output(['vcgencmd', 'measure_temp'], text=True, timeout=1)
+        s['temp'] = raw.strip().replace('temp=', '')
+    except Exception:
+        pass
+    try:
+        mem = {}
+        for line in open('/proc/meminfo'):
+            k, v = line.split(':', 1)
+            mem[k.strip()] = int(v.split()[0])
+        s['ram_free'] = mem.get('MemAvailable', 0) // 1024
+        s['ram_total'] = mem.get('MemTotal', 0) // 1024
+    except Exception:
+        pass
+    try:
+        secs = float(open('/proc/uptime').read().split()[0])
+        h, m = int(secs // 3600), int((secs % 3600) // 60)
+        s['uptime'] = f'{h}h {m:02d}m' if h else f'{m}m'
+    except Exception:
+        pass
+    return s
+
+def _corrupt_line(line, amount):
+    chars = list(line)
+    indices = [i for i, c in enumerate(chars) if c not in (' ', '\\')]
+    n = int(len(indices) * amount)
+    for i in random.sample(indices, min(n, len(indices))):
+        chars[i] = random.choice(_BLOCK_CHARS)
+    return ''.join(chars)
 
 def _styled(text, color='', bold=False, dim=False):
     style = ''
@@ -196,27 +247,88 @@ def _toggle_fps_logging():
         print(f'\r{_styled("[FPS]", ANSI_CYAN, bold=True)} LOG OFF        ')
 
 def _print_startup_banner():
+    global _session_start
+    _session_start = time.time()
     print()
-    _print_retina_logo(offset=0)
-    print(_styled('=== RETINA CANNON // BOOT SEQUENCE ===', ANSI_MAGENTA, bold=True))
-    print(f'{_styled("[Startup]", ANSI_GREEN, bold=True)} Camera: {CAM_W}x{CAM_H} | View: {VIEW_MODE_NAMES[current_view_mode]}')
-    print(f'{_styled("[Startup]", ANSI_GREEN, bold=True)} Rutt default: {RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]} | ASCII default: {ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]}')
-    print(f'{_styled("[Controls]", ANSI_CYAN, bold=True)} Arrow Up/Down: cycle color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | V: view | F: fps log | Ctrl+C: quit')
-    print(_styled('======================================', ANSI_MAGENTA, bold=True))
+
+    # Logo with scan-line effect: each line appears with a brief delay
+    for i, line in enumerate(RETINA_CANNON_ASCII):
+        color = ANSI_RAINBOW[i % len(ANSI_RAINBOW)]
+        print(_styled(line, color, bold=True))
+        time.sleep(0.045)
+    print(_styled('Copyright (c) Netmilk Studio sagl', ANSI_WHITE, dim=True))
+    print(_styled('Licensed under the MIT License', ANSI_WHITE, dim=True))
+    print()
+
+    # System stats
+    st = _sys_stat()
+    sep = _styled('  ' + '·' * 48, ANSI_DIM)
+
+    def stat_row(label, value, vcolor=ANSI_WHITE):
+        dots = _styled('.' * (16 - len(label)), ANSI_DIM)
+        return f'  {_styled(label, ANSI_CYAN)}{dots} {_styled(value, vcolor, bold=True)}'
+
+    print(_styled('  ╔══ SYSTEM STATUS ' + '═' * 33 + '╗', ANSI_MAGENTA, bold=True))
+    if 'host'     in st: print(stat_row('Host',    st["host"]))
+    if 'temp'     in st:
+        temp_c = float(st['temp'].replace("'C", ""))
+        tc = ANSI_RED if temp_c > 70 else ANSI_YELLOW if temp_c > 55 else ANSI_GREEN
+        print(stat_row('SoC temp', st['temp'], vcolor=tc))
+    if 'ram_free' in st: print(stat_row('RAM free', f"{st['ram_free']} MB / {st['ram_total']} MB"))
+    if 'uptime'   in st: print(stat_row('Uptime',  st['uptime']))
+    print(stat_row('Camera',   f'{CAM_W} × {CAM_H} BGR888'))
+    print(stat_row('Shader',   _shader_name or 'rutt_etra.frag'))
+    print(stat_row('Effect',   f'{EFFECT_MODE_NAMES[current_effect_mode]} · {_color_mode_name()}'))
+    print(_styled('  ╚' + '═' * 51 + '╝', ANSI_MAGENTA, bold=True))
+    print()
+
+    # Random nerd quote
+    quote = random.choice(_BOOT_QUOTES)
+    print(f'  {_styled(quote, ANSI_DIM)}')
+    print()
+
+    print(f'  {_styled("↑↓", ANSI_CYAN, bold=True)} color  '
+          f'{_styled("←→", ANSI_CYAN, bold=True)} wave/density  '
+          f'{_styled("Space", ANSI_CYAN, bold=True)} effect  '
+          f'{_styled("V", ANSI_CYAN, bold=True)} view  '
+          f'{_styled("F", ANSI_CYAN, bold=True)} fps  '
+          f'{_styled("Ctrl+C", ANSI_CYAN, bold=True)} quit')
+    print(_styled('  ' + '─' * 51, ANSI_DIM))
 
 def _print_shutdown_banner(reason):
     print()
-    _print_retina_logo(offset=3)
-    print(_styled('=== RETINA CANNON // SHUTDOWN ===', ANSI_YELLOW, bold=True))
-    print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Renderer stop requested.')
-    print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Camera stream offline.')
+
+    # Logo corruption: each line degrades progressively
+    amounts = [0.15, 0.35, 0.55, 0.75, 0.90, 1.0]
+    for i, line in enumerate(RETINA_CANNON_ASCII):
+        amount = amounts[min(i, len(amounts) - 1)]
+        corrupted = _corrupt_line(line, amount)
+        color = ANSI_RED if i >= 3 else ANSI_YELLOW
+        print(_styled(corrupted, color, dim=(i >= 2)))
+        time.sleep(0.035)
+    print(_styled('░░░░░░░ signal lost ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░', ANSI_RED, dim=True))
+    print()
+
+    # Session stats
+    if _session_start is not None:
+        elapsed = time.time() - _session_start
+        mins, secs = int(elapsed // 60), int(elapsed % 60)
+        duration = f'{mins}m {secs:02d}s'
+        est_frames = int(elapsed * max(_fps_smoothed, 0))
+        print(f'  {_styled("Session", ANSI_DIM)} {_styled(duration, ANSI_WHITE, bold=True)}'
+              f'  {_styled("  Frames ~", ANSI_DIM)}{_styled(str(est_frames), ANSI_WHITE, bold=True)}'
+              f'  {_styled("  Avg FPS ~", ANSI_DIM)}{_styled(f"{_fps_smoothed:.1f}", ANSI_WHITE, bold=True)}')
+        print()
+
     if reason in ('ctrl_c', 'signal'):
-        print(f'{_styled("[Goodbye]", ANSI_CYAN, bold=True)} Target lost, cannon reloading. See you on the next run.')
+        print(f'  {_styled("▶", ANSI_CYAN, bold=True)} {_styled("Target lost. Cannon reloading.", ANSI_WHITE)}')
     elif reason.startswith('init_error') or reason.startswith('run_error'):
-        print(f'{_styled("[Goodbye]", ANSI_RED, bold=True)} Exit with error ({reason}).')
+        print(f'  {_styled("▶", ANSI_RED, bold=True)} {_styled(f"Renderer exited with error: {reason}", ANSI_RED)}')
     else:
-        print(f'{_styled("[Goodbye]", ANSI_GREEN, bold=True)} Session closed. See you on the next visual test.')
-    print(_styled('================================', ANSI_YELLOW, bold=True))
+        print(f'  {_styled("▶", ANSI_GREEN, bold=True)} {_styled("Session closed cleanly. See you on the next visual test.", ANSI_WHITE)}')
+
+    print(_styled('  ' + '─' * 51, ANSI_DIM))
+    print()
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
@@ -431,6 +543,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('shader', nargs='?', default=str(RETINA_DIR / 'rutt_etra.frag'))
 args = parser.parse_args()
+_shader_name = Path(args.shader).name
 
 class FakeArgs:
     shader = [Path(args.shader)]
