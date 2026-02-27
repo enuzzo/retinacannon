@@ -4,7 +4,7 @@ uniform float uDistortion;
 uniform int uEffectMode;
 
 #define LINES 80.0
-#define LINE_WIDTH 0.0015
+#define LINE_WIDTH 0.0026
 #define EXTRUSION 0.055
 #define CRT_CURVATURE 0.065
 #define NOISE_STRENGTH 0.025
@@ -94,15 +94,16 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float dist = abs(uv.y - lineY);
 
     float lineAlpha = 1.0 - smoothstep(0.0, LINE_WIDTH, dist);
-    float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.15 * luma;
-    float scan = 0.92 + 0.08 * sin((uv.y * iResolution.y) * 3.14159265);
-    float grille = 0.95 + 0.05 * sin((uv.x * iResolution.x) * 1.5);
+    float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 6.0, dist)) * 0.28 * luma;
+    float scan = 0.96 + 0.04 * sin((uv.y * iResolution.y) * 3.14159265);
+    float grille = 0.98 + 0.02 * sin((uv.x * iResolution.x) * 1.5);
     float vignette = pow(clamp(16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y), 0.0, 1.0), 0.22);
     float noise = (hash12(fragCoord + vec2(iTime * 60.0, iTime * 13.0)) - 0.5) * NOISE_STRENGTH;
 
     vec3 lineCol = getLineColor(uColorMode, camColor);
     vec3 color = lineCol * (lineAlpha + glow);
-    color *= scan * grille * mix(0.35, 1.0, vignette);
+    color *= scan * grille * mix(0.55, 1.0, vignette);
+    color *= 1.25;
     color += noise;
     return clamp(color, 0.0, 1.0);
 }

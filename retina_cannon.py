@@ -54,9 +54,9 @@ loc_effect_mode = -1
 current_color_mode = 0
 current_distortion = 1.0
 current_effect_mode = 0
-DISTORTION_STEP = 0.05
+DISTORTION_STEP = 0.10
 DISTORTION_MIN = 0.10
-DISTORTION_MAX = 3.00
+DISTORTION_MAX = 4.00
 
 COLOR_MODE_NAMES = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
 EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
@@ -136,7 +136,7 @@ glsl.onInit(on_init)
 glsl.onRender(on_render)
 
 # ---- Keyboard thread ----
-def _read_escape_sequence(fd, max_len=16, timeout=0.02):
+def _read_escape_sequence(fd, max_len=32, timeout=0.08):
     # Collect bytes that follow ESC, including CSI params/modifiers.
     seq = []
     while len(seq) < max_len:
@@ -153,14 +153,20 @@ def _read_escape_sequence(fd, max_len=16, timeout=0.02):
     return ''.join(seq)
 
 def _decode_arrow(seq):
-    if not seq or seq[0] not in ('[', 'O'):
+    if not seq:
         return None
+    if seq[0] in ('[', 'O'):
+        key = seq[-1]
+    else:
+        key = next((ch for ch in reversed(seq) if ch in 'ABCD'), None)
+        if key is None:
+            return None
     return {
         'A': 'up',
         'B': 'down',
         'C': 'right',
         'D': 'left',
-    }.get(seq[-1])
+    }.get(key)
 
 def keyboard_thread():
     global current_color_mode, current_distortion, current_effect_mode
