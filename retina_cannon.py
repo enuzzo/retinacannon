@@ -9,7 +9,7 @@ sys.path.insert(0, '/home/enuzzo/kms-glsl')
 from lib import glsl, options
 from gl import *
 
-# ---- Inizializza picamera2 subito, prima di tutto ----
+# ---- Initialize picamera2 immediately ----
 from picamera2 import Picamera2
 import libcamera
 import numpy as np
@@ -44,7 +44,7 @@ def _capture_loop():
 
 threading.Thread(target=_capture_loop, daemon=True).start()
 
-# ---- Setup GL texture manuale ----
+# ---- Manual GL texture setup ----
 tex_id = None
 tex_unit = 0
 loc_channel0 = -1
@@ -57,7 +57,7 @@ def on_init(program, width, height):
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
 
-    # Crea texture manualmente
+    # Create the texture manually
     tid = c_uint(0)
     glsl.glGenTextures(1, ctypes.byref(tid))
     tex_id = tid.value
@@ -110,7 +110,7 @@ def keyboard_thread():
                 ch2 = sys.stdin.read(1)
                 if ch2 == '[':
                     ch3 = sys.stdin.read(1)
-                    names = ['Bianco','Verde phosphor','Ambra CRT','Colori camera']
+                    names = ['White', 'Green phosphor', 'Amber CRT', 'Camera colors']
                     if ch3 == 'A':
                         current_color_mode = (current_color_mode + 1) % 4
                         print(f'\r[COLOR] {names[current_color_mode]}        ')
@@ -122,7 +122,7 @@ def keyboard_thread():
 
 threading.Thread(target=keyboard_thread, daemon=True).start()
 
-# ---- Lancia glsl ----
+# ---- Launch glsl ----
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('shader', nargs='?', default='/home/enuzzo/retinacannon/rutt_etra.frag')

@@ -48,3 +48,11 @@
 - Fix: replaced old `/usr/local/bin/glslViewer` launcher path with the known working `kms-glsl` Python flow.
 - Concrete verification: startup succeeds and renders at ~20 FPS (`19.997686` and `19.999998` observed in timed run).
 - Prevention: keep `start_cannon.sh` as canonical launcher and validate FPS via timed startup when troubleshooting.
+
+### [2026-02-27 09:08] English-comments normalization on scripts
+- Goal: keep script/Python comments and project-facing text consistently in English.
+- Actions taken: scanned root `*.py`/`*.sh` files and translated non-English comments in `retina_cannon.py`; normalized color-mode labels to English.
+- Errors encountered: none.
+- Fix: updated only comments and user-facing labels; no runtime logic changes.
+- Concrete verification: no Italian keywords found in root script comments; `python3 -m py_compile retina_cannon.py` passes.
+- Prevention: include language check in future script reviews before commit.

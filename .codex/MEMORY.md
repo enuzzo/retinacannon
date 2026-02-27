@@ -2,6 +2,7 @@
 
 ## Core directives
 - Never store plaintext secrets in versioned files, logs, output, or commit messages.
+- Keep project-facing text in English (docs, comments, review notes, commit messages).
 - Session start: read this file plus the last 2 entries in `SESSION_LOG.md`.
 - Keep changes minimal, verifiable, and aligned with project goals.
 - Do not change application logic without an explicit request.
