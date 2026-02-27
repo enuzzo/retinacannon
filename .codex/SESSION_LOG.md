@@ -56,3 +56,15 @@
 - Fix: updated only comments and user-facing labels; no runtime logic changes.
 - Concrete verification: no Italian keywords found in root script comments; `python3 -m py_compile retina_cannon.py` passes.
 - Prevention: include language check in future script reviews before commit.
+
+### [2026-02-27 09:09] Runtime monitor report before next step
+- Goal: run a final live check and capture FPS stability before planning the next phase.
+- Actions taken: executed `start_cannon.sh` in timed live runs (10s and 16s) and monitored render logs.
+- Errors encountered: none during these runs.
+- Fix: n/a.
+- Concrete verification:
+  - Run A FPS samples: `20.000229`, `19.918130`, `19.945667`.
+  - Run B FPS samples: `20.000256`, `20.000229`, `20.000152`, `20.000178`, `19.999970`, `20.000144`.
+  - Consolidated FPS summary: min `19.918130`, max `20.000256`, average `19.984995`.
+  - Camera + EGL + OpenGL ES initialization completed successfully in both runs.
+- Prevention: when performance drifts, run a timed live check and compare against the ~20 FPS baseline.

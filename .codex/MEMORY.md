@@ -17,6 +17,7 @@
 - Runtime stack: `.frag` shaders + Python/shell scripts.
 - External dependency: `glslViewer/` (managed as a separate local repo).
 - Main run command: `/home/enuzzo/retinacannon/start_cannon.sh`.
+- Stable runtime baseline: ~20 FPS on current host with the canonical launcher.
 
 ## Security and secrets
 - Rule: secrets live only in ignored local files (`config.local.h`, `.env.local`, etc.).
