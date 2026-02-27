@@ -89,3 +89,49 @@
   - `ESC O` sequence test produced `[DISTORTION]` and `[COLOR]` feedback.
   - `ESC [` sequence test also produced `[DISTORTION]` feedback.
 - Prevention: keep multi-prefix handling for terminal control sequences in interactive input code.
+
+---
+
+### [2026-02-27] Full session — kms-glsl fix, shutdown safety, 2 new effects, Signal Ghost redesign, docs
+
+**Goal:** fix kms-glsl path detection regression, add robustness, add Pixel Art + Signal Ghost effects, update all documentation.
+
+**Actions taken:**
+
+1. **Git sync** — pulled 7 upstream commits (fast-forward, no conflicts).
+
+2. **kms-glsl detection fix** — upstream commit introduced `[ -d "$_d/lib" ]` check; `lib` is `lib.py` (a file, not a directory). Fixed in `retina_cannon.py`, `start_cannon.sh`, `run_rutt.sh`, `run_base.sh` to check for `glsl.so` file presence instead.
+
+3. **SIGTERM/SIGHUP handlers** — added `_handle_signal()` routing to `_request_renderer_stop()`; registered for both signals.
+
+4. **Non-blocking keyboard thread** — replaced blocking `os.read(fd, 1)` with `select.select([fd], [], [], 0.5)` timeout loop; prevents hanging when DRM takes TTY into graphics mode.
+
+5. **Nerd startup/shutdown banners** — `_print_startup_banner()`: scan-line logo, system stats box (hostname, SoC temp, RAM, uptime), random nerd quote, controls summary. `_print_shutdown_banner()`: clean logo + session stats (duration, total frames, avg FPS).
+
+6. **Pixel Art effect (mode 2)** — block grid pixelation with 6 radically different palettes: Full Color, Game Boy DMG-01 (LCD gap effect), CGA mode 4, Phosphor P1, Amber P3, Infrared FLIR jet. Left/Right controls block size (4–48px, step 2).
+
+7. **Signal Ghost effect (mode 3)** — interactive generative typography. Motion detection CPU-side in capture thread (1/8 resolution, dead-zone 0.03, multiplier 30.0, asymmetric smoothing). Letters change size/rate/wobble reactively. 6 color modes: Void/Matrix/Ghost Cam/Neon/Thermal/Chromatic.
+
+8. **Signal Ghost redesign** — first version had letters always huge (scale 0.6–1.05) and no visible motion reaction. Redesigned: baseline scale 0.07–0.11 (breathe), per-cell staggered burst, motionBoost × proximity for centroid amplification.
+
+9. **Default view fix** — `current_view_mode = 0` (16:9) instead of 2 (Fisheye).
+
+10. **Shutdown banner cleanup** — removed corruption/glitch effect on exit logo, restored clean `_print_retina_logo(offset=3)`.
+
+11. **Documentation** — rewrote `README.md` (all 4 effects, motion detection, shutdown safety, defaults table), rewrote `CLAUDE.md` (full uniforms table, all 4 effects, design decisions, effect mode checklist). Updated `.codex/MEMORY.md` and `.codex/SESSION_LOG.md`.
+
+**Errors encountered:**
+- kms-glsl not found `[FATAL]`: upstream broke path detection (lib/ vs lib.py). Fixed.
+- System freeze requiring hard power cycle: test `./start_cannon.sh & kill %1` sent SIGTERM → DRM master leaked → display locked across soft reboot. Fixed: SIGTERM/SIGHUP handlers added.
+- Signal Ghost letters always huge: scale formula included presence×0.55 + cellLuma×0.35 making baseline 0.6–1.05. Redesigned to 0.07–0.11 baseline.
+- Signal Ghost no motion reaction: multiplier 14.0 didn't clear sensor noise; no dead-zone. Fixed: dead-zone 0.03, multiplier 30.0, asymmetric smoothing.
+
+**Concrete verification:**
+- `python3 -m py_compile retina_cannon.py` — passes.
+- `bash -n start_cannon.sh` — passes.
+- Live test: startup banner, ~20 FPS, all keyboard controls, graceful Ctrl+C shutdown confirmed by user.
+
+**Prevention:**
+- kms-glsl: always check for `glsl.so` file, not directory structure.
+- DRM: never SIGKILL; never test with background kill without SIGINT.
+- New effect modes: follow the 8-location checklist in CLAUDE.md.

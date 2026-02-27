@@ -26,15 +26,15 @@ Four Pis later, they sit on the desk. They don't say anything. They just look at
 
 At some point the only reasonable response is to give one of them a camera, a monitor, and a reason to live. Hence: Retina Cannon.
 
-**The actual use case** is beautifully stupid: print a nice 3D-printed enclosure *(files coming soon - yes, we will actually share them, wiiiwwww 🎉)*, walk into a friend's place with a 100-inch TV doing absolutely nothing, plug in AC + HDMI, and suddenly you're the most interesting person at the party. No streaming service. No game console. Just a $40 computer turning your guests into glitchy CRT sculptures in real time.
+**The actual use case** is beautifully stupid: print a nice 3D-printed enclosure *(files coming soon)*, walk into a friend's place with a 100-inch TV doing absolutely nothing, plug in AC + HDMI, and suddenly you're the most interesting person at the party. No streaming service. No game console. Just a $40 computer turning your guests into glitchy CRT sculptures in real time.
 
-**What's coming:** encoder knob and gesture controls, already prototyped on breadboard, already working, just not integrated yet. This is because the author also needs to eat, sleep, and occasionally interact with other humans. The todos are real. The timeline is optimistic. You know how it goes.
+**What's coming:** encoder knob and gesture controls, already prototyped on breadboard. Audio-reactive shaders, once the microphone is mounted. The todos are real. The timeline is optimistic. You know how it goes.
 
 ---
 
-## What it does
+## Effects
 
-Two effects, switchable live:
+Four effects, all in a single shader, switchable live with `Space`:
 
 ### Rutt-Etra CRT
 
@@ -42,55 +42,91 @@ In 1973, [Bill Rutt and Steve Etra](https://en.wikipedia.org/wiki/Rutt/Etra_Vide
 
 This is the same thing. In GLSL. On a $40 computer. Running at 20 FPS.
 
-Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field. It is deeply unsettling in the best possible way.
+Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field.
+
+**Color modes:** `B/W` · `Colors` · `Prism Warp` · `Acid Melt`
 
 ### ASCII Cam
 
-Every camera pixel gets mapped to a glyph from an 8×8 bitmap font hardcoded inside the shader itself. Luminance picks the character. The whole thing runs on the GPU, in real time, with no CPU involvement in the actual rendering.
+Every camera pixel gets mapped to a glyph from an 8x8 bitmap font hardcoded inside the shader. Luminance picks the character. The whole thing runs on the GPU in real time, with no CPU involvement in the actual rendering.
 
-It's that thing you watched on YouTube in 2007, convinced someone had spent weeks on it. It runs here at 20 FPS on hardware you can power from a phone charger.
+**Color modes:** `Color symbols` · `Monochrome symbols` · `Inverted mono` · `Inverted color`
+
+### Pixel Art
+
+The camera downsampled to a grid of blocks, each rendered as a single pixel of a retro palette. The block size is tunable from near-native (4px) to aggressively chunky (48px).
+
+| Mode | Look |
+|---|---|
+| Full Color | Pixelated camera, BGR corrected |
+| Game Boy | DMG-01 four-shade green + authentic LCD pixel gap |
+| CGA | Mode 4 Palette 1 hi: black / cyan / magenta / white |
+| Phosphor | P1 green terminal with bloom + CRT vignette |
+| Amber | P3 amber monitor with warm glow + CRT vignette |
+| Infrared | FLIR jet colormap, white-hot at peak luminance |
+
+### Signal Ghost
+
+Interactive generative typography. A field of letters that lives and breathes with your presence.
+
+The capture loop runs motion detection and presence estimation at 1/8 resolution on the CPU — cheap enough to run every frame without touching the GPU budget. The results drive four GLSL uniforms:
+
+- **`uMotionLevel`** — frame-diff magnitude, dead-zone filtered, asymmetrically smoothed (fast attack, slow decay so gestures linger visually)
+- **`uPresenceScale`** — overall scene luminance, a proxy for how close you are
+- **`uPresenceCX/CY`** — weighted centroid of bright regions: where you are in the frame
+
+At rest: small letters, slow breathing. When you move: letters burst with per-cell staggered timing, creating a wave across the field rather than a uniform explosion. When you approach: letters near your centroid amplify their reaction.
+
+| Mode | Look |
+|---|---|
+| Void | White glyphs on black, minimal |
+| Matrix | Classic green terminal |
+| Ghost Cam | Letters tinted by camera, faint camera ghost background |
+| Neon | Per-cell hue that shifts on motion |
+| Thermal | FLIR jet coloring per local luminance |
+| Chromatic | RGB channels split by motion intensity |
 
 ---
 
 ## How it works
 
 ```
-Pi Camera (BGR888, 1640×1232)
+Pi Camera (BGR888, 1640x1232)
     │
     │  Picamera2 + libcamera
     ▼
-capture thread  ──(threading.Lock)──▶  latest frame
-                                            │
-                                  C render loop (kms-glsl)
-                                            │
-                                  Python render callback
-                                            │
-                                  glTexSubImage2D  ← upload frame to GPU
-                                            │
-                                  GLSL fragment shader
-                                            │
-                                  DRM/KMS output (fullscreen, no windowing system)
+capture thread ──(threading.Lock)──▶ latest frame
+    │                                      │
+    │  motion detection (1/8 res)    C render loop (kms-glsl)
+    │  uMotionLevel, uPresence*             │
+    │                                Python render callback
+    │                                      │
+    └──────────────────────────────▶ glTexSubImage2D + uniforms
+                                           │
+                                    GLSL fragment shader
+                                           │
+                                    DRM/KMS output (fullscreen)
 ```
 
-**Capture**: a daemon thread runs continuously and keeps the latest frame behind a lock. The render loop always gets the freshest frame available and never blocks waiting for one.
+**Capture**: a daemon thread runs continuously, keeps the latest frame behind a lock, and computes motion/presence data at 1/8 resolution on the side — negligible CPU cost.
 
-**Render**: `kms-glsl`'s C loop fires a Python callback every frame. That callback uploads the texture and sets all the GLSL uniforms: color mode, wave intensity, character density, effect mode, view mode, camera aspect ratio. Python orchestrates; the GPU executes.
+**Render**: `kms-glsl`'s C loop fires a Python callback every frame. The callback uploads the texture and pushes all uniforms to the GPU.
 
-**Shader**: all visual logic lives in `rutt_etra.frag`. It is a single fragment shader that implements two completely different visual systems and switches between them via a uniform. The CPU has no idea what's happening visually and that's fine.
+**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, four completely different visual systems, routed by `uEffectMode`.
 
-**Keyboard**: a separate thread reads from `/dev/tty` with `ICANON`, `ECHO`, and `ISIG` all disabled. This means the kernel's job of turning Ctrl+C into a SIGINT is explicitly circumvented. The signal arrives as raw `\x03` bytes, caught in Python, used to trigger a graceful shutdown. This is not an accident.
+**Keyboard**: a separate thread reads `/dev/tty` in raw mode (`ICANON`, `ECHO`, `ISIG` all disabled). Ctrl+C arrives as `\x03` bytes and triggers graceful shutdown. `SIGTERM` and `SIGHUP` are also handled — kill from SSH works cleanly.
 
-**stdin**: replaced with a silent pipe at startup. Without this, `kms-glsl`'s C code would interpret terminal activity on fd 0 as user input and behave unpredictably. The write end of the pipe doubles as the shutdown signal mechanism. Two problems, one ugly-but-effective solution.
+**stdin**: replaced with a silent pipe at startup so `kms-glsl`'s C code doesn't mistake terminal activity for user input. The write end doubles as the shutdown signal mechanism.
 
 ---
 
 ## Requirements
 
 - Raspberry Pi with camera support enabled
-- `python3`, `libcamera`, `picamera2`
-- [`kms-glsl`](https://github.com/keithzg/kms-glsl) - the C rendering backbone, expected in one of:
+- `python3`, `libcamera`, `picamera2`, `numpy`
+- [`kms-glsl`](https://github.com/keithzg/kms-glsl) in one of:
   - `KMS_GLSL_DIR` environment variable
-  - `../kms-glsl` sibling directory ← recommended
+  - `../kms-glsl` sibling directory (recommended)
   - `~/kms-glsl`
 
 Recommended layout on the Pi:
@@ -99,7 +135,7 @@ Recommended layout on the Pi:
 ~/retinacannon/   ← this repo
 ```
 
-If `kms-glsl` is missing, the launcher prints `[FATAL]` and exits. No cryptic import errors, no silent hangs.
+Detection looks for `glsl.so` inside the candidate directory. If not found, the launcher prints `[FATAL]` and exits.
 
 ---
 
@@ -112,12 +148,17 @@ If `kms-glsl` is missing, the launcher prints `[FATAL]` and exits. No cryptic im
 Specific shader:
 ```bash
 ./run_rutt.sh     # Rutt-Etra (default)
-./run_base.sh     # raw camera passthrough, for when you just want to see if the camera works
+./run_base.sh     # raw camera passthrough
 ```
 
 Non-standard `kms-glsl` location:
 ```bash
 KMS_GLSL_DIR=/path/to/kms-glsl ./start_cannon.sh
+```
+
+Kill cleanly from SSH (when DRM has taken over the local terminal):
+```bash
+kill -SIGINT $(pgrep -f retina_cannon.py)
 ```
 
 ---
@@ -126,40 +167,54 @@ KMS_GLSL_DIR=/path/to/kms-glsl ./start_cannon.sh
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Cycle color mode |
-| `←` / `→` | Rutt-Etra: wave intensity / ASCII: character density |
-| `Space` | Switch effect (Rutt-Etra ↔ ASCII Cam) |
-| `V` | Cycle view mode (16:9 → 4:3 → Fisheye) |
+| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost |
+| `↑` / `↓` | Cycle color mode (per-effect, independent) |
+| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density |
+| `V` | Cycle view: 16:9 → 4:3 → Fisheye |
 | `F` | Toggle FPS logging to terminal |
 | `Ctrl+C` | Clean shutdown |
 
-Arrow keys work with both `ESC [` and `ESC O` escape sequences, because terminal emulators are an ungoverned wilderness and standardization is aspirational.
+Arrow keys handle both `ESC [` and `ESC O` prefixes. Because terminal emulators are ungoverned.
 
 ---
 
-## Color modes
+## Startup / Shutdown
 
-**Rutt-Etra**: `B/W` · `Colors` · `Prism Warp` · `Acid Melt`
+On boot, after camera and GL init:
+- Logo appears line-by-line (scan effect)
+- System status box: hostname, SoC temperature (color-coded), RAM, uptime, active shader, effect
+- Random nerd quote from a curated list
 
-**ASCII Cam**: `Color symbols` · `Monochrome symbols` · `Inverted mono` · `Inverted color`
-
-Default startup: Rutt on `Prism Warp`, ASCII on `Color symbols`. Both picked by someone with strong opinions about what looks good at a gallery opening.
+On shutdown: clean logo + session stats (duration, estimated frames rendered, average FPS).
 
 ---
 
-## Performance
+## Defaults
 
-~20 FPS on target hardware. Consistent. Measured. The original Rutt-Etra ran at whatever frame rate the video signal had. This runs at whatever the GPU and DRM pipeline can sustain. Same aesthetic; fractionally lower barrier to entry.
+| Parameter | Value |
+|---|---|
+| View mode | 16:9 |
+| Rutt color | Prism Warp |
+| ASCII color | Color symbols |
+| Pixel Art color | Full Color |
+| Signal Ghost color | Void |
+| Rutt wave | 0.40 |
+| ASCII density | 3.00 |
+| Pixel block size | 8px |
+| Ghost field density | 2.0 |
+| FPS baseline | ~20 FPS |
 
 ---
 
 ## Notes for developers
 
-**`c_float()` is not optional.** Float uniforms passed to OpenGL via ctypes must be explicitly wrapped. If you skip it, the GPU receives garbage and the image becomes a psychedelic disaster. Impressive, but not what you wanted.
+**`c_float()` is not optional.** Float uniforms via ctypes must be explicitly wrapped or the GPU gets garbage.
 
-**The GIL is load-bearing here.** Globals like `current_rutt_wave` and `current_effect_mode` are written by the keyboard thread and read by the render callback with no explicit locking. CPython's GIL makes these reads atomically safe. If you port this to a free-threaded Python build, add locks. You have been warned.
+**The GIL is load-bearing.** Globals like `current_rutt_wave` are written by the keyboard thread and read by the render callback with no explicit locking. CPython's GIL makes these reads atomically safe. Port to free-threaded Python and add locks.
 
-**Testing without Pi hardware** will fail immediately. `Picamera2` won't import, EGL won't initialize, and `kms-glsl` will complain about the absence of a DRM device. This is correct behavior.
+**Never use SIGTERM/SIGKILL to stop the process.** Both are now handled gracefully (SIGTERM → same clean shutdown path as Ctrl+C), but a SIGKILL will leave DRM in an exclusive state that may survive a soft reboot and require a hard power cycle.
+
+**Testing without Pi hardware** will fail immediately. `Picamera2` won't import, EGL won't initialize, `kms-glsl` will complain. This is correct.
 
 Syntax checks that work anywhere:
 ```bash
