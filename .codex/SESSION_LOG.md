@@ -40,3 +40,11 @@
 - Fix: no code change applied; issue is environment/display availability, not repo consistency.
 - Concrete verification: root repo is clean; no tracked local-secret files; `.codex` only in root; ignore rules are active.
 - Prevention: run startup checks from a display-enabled session before runtime validation sign-off.
+
+### [2026-02-27 09:06] Runtime path alignment to kms-glsl launcher
+- Goal: restore working startup behavior used in previous sessions.
+- Actions taken: updated `start_cannon.sh` to run `retina_cannon.py` through `kms-glsl` (`cd /home/enuzzo/kms-glsl`, `PYTHONPATH=/home/enuzzo/kms-glsl`).
+- Errors encountered: none after alignment.
+- Fix: replaced old `/usr/local/bin/glslViewer` launcher path with the known working `kms-glsl` Python flow.
+- Concrete verification: startup succeeds and renders at ~20 FPS (`19.997686` and `19.999998` observed in timed run).
+- Prevention: keep `start_cannon.sh` as canonical launcher and validate FPS via timed startup when troubleshooting.
