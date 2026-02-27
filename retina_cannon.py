@@ -3,8 +3,28 @@ import sys, os, glob, threading, select, termios
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 
-os.chdir('/home/enuzzo/kms-glsl')
-sys.path.insert(0, '/home/enuzzo/kms-glsl')
+RETINA_DIR = Path(__file__).resolve().parent
+
+# Resolve kms-glsl dependency: KMS_GLSL_DIR env var > ../kms-glsl > ~/kms-glsl
+_kms_env = os.environ.get('KMS_GLSL_DIR', '')
+KMS_GLSL_DIR = Path(_kms_env).resolve() if _kms_env else None
+
+if KMS_GLSL_DIR is None or not (KMS_GLSL_DIR / 'lib').is_dir():
+    KMS_GLSL_DIR = None
+    for _candidate in [
+        RETINA_DIR.parent / 'kms-glsl',
+        Path.home() / 'kms-glsl',
+    ]:
+        if (_candidate / 'lib').is_dir():
+            KMS_GLSL_DIR = _candidate.resolve()
+            break
+
+if KMS_GLSL_DIR is None:
+    print('[FATAL] kms-glsl not found. Set KMS_GLSL_DIR or place it at ../kms-glsl')
+    sys.exit(1)
+
+os.chdir(str(KMS_GLSL_DIR))
+sys.path.insert(0, str(KMS_GLSL_DIR))
 
 from lib import glsl, options
 from gl import *
@@ -396,7 +416,7 @@ threading.Thread(target=keyboard_thread, daemon=True).start()
 # ---- Launch glsl ----
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument('shader', nargs='?', default='/home/enuzzo/retinacannon/rutt_etra.frag')
+parser.add_argument('shader', nargs='?', default=str(RETINA_DIR / 'rutt_etra.frag'))
 args = parser.parse_args()
 
 class FakeArgs:
