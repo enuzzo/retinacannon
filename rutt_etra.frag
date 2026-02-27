@@ -5,6 +5,8 @@ uniform float uAsciiDensity;
 uniform int uEffectMode;
 uniform int uViewMode;
 uniform float uCameraAspect;
+uniform int uShowFps;
+uniform float uFpsValue;
 
 #define LINES 72.0
 #define LINE_WIDTH 0.0015
@@ -71,6 +73,19 @@ const int FONT_LOWER[26][8] = int[26][8](
     int[8](0, 0, 99, 54, 28, 54, 99, 0),
     int[8](0, 0, 51, 51, 51, 62, 48, 31),
     int[8](0, 0, 63, 25, 12, 38, 63, 0)
+);
+
+const int FONT_DIGITS[10][8] = int[10][8](
+    int[8](62, 99, 115, 123, 111, 103, 62, 0),
+    int[8](12, 14, 12, 12, 12, 12, 63, 0),
+    int[8](30, 51, 48, 28, 6, 51, 63, 0),
+    int[8](30, 51, 48, 28, 48, 51, 30, 0),
+    int[8](56, 60, 54, 51, 127, 48, 120, 0),
+    int[8](63, 3, 31, 48, 48, 51, 30, 0),
+    int[8](28, 6, 3, 31, 51, 51, 30, 0),
+    int[8](63, 51, 48, 24, 12, 12, 12, 0),
+    int[8](30, 51, 51, 30, 51, 51, 30, 0),
+    int[8](30, 51, 51, 62, 48, 24, 14, 0)
 );
 
 float getLuma(vec3 color) {
@@ -177,6 +192,85 @@ float glyphLetterInk(vec2 cellUV, int letterIndex) {
     return float(ink);
 }
 
+float glyphUpperInk(vec2 uv, int letterIndex) {
+    vec2 p = clamp(uv, 0.0, 0.999);
+    int col = int(floor(p.x * 8.0));
+    int row = int(floor((1.0 - p.y) * 8.0));
+    int bits = FONT_UPPER[clamp(letterIndex, 0, 25)][row];
+    return float((bits >> col) & 1);
+}
+
+float glyphDigitInk(vec2 uv, int digit) {
+    vec2 p = clamp(uv, 0.0, 0.999);
+    int col = int(floor(p.x * 8.0));
+    int row = int(floor((1.0 - p.y) * 8.0));
+    int bits = FONT_DIGITS[clamp(digit, 0, 9)][row];
+    return float((bits >> col) & 1);
+}
+
+float glyphDotInk(vec2 uv) {
+    vec2 p = clamp(uv, 0.0, 1.0);
+    float dx = abs(p.x - 0.5);
+    float dy = abs(p.y - 0.82);
+    return 1.0 - smoothstep(0.14, 0.20, max(dx, dy));
+}
+
+float drawOverlayGlyph(vec2 topCoord, vec2 origin, int slot, int kind, int index, float scale) {
+    float advance = 9.0 * scale;
+    vec2 size = vec2(8.0 * scale);
+    vec2 p = topCoord - (origin + vec2(float(slot) * advance, 0.0));
+    if (p.x < 0.0 || p.y < 0.0 || p.x >= size.x || p.y >= size.y) {
+        return 0.0;
+    }
+    vec2 uv = p / size;
+    if (kind == 0) return glyphUpperInk(uv, index);
+    if (kind == 1) return glyphDigitInk(uv, index);
+    return glyphDotInk(uv);
+}
+
+vec3 drawFpsOverlay(vec3 color, vec2 fragCoord) {
+    if (uShowFps == 0) {
+        return color;
+    }
+
+    vec2 topCoord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
+    vec2 origin = vec2(20.0, 18.0);
+    float scale = 2.0;
+    float boxW = 172.0;
+    float boxH = 28.0;
+
+    if (topCoord.x >= origin.x - 8.0 && topCoord.x <= origin.x + boxW
+            && topCoord.y >= origin.y - 8.0 && topCoord.y <= origin.y + boxH) {
+        color = mix(color, vec3(0.0), 0.78);
+    }
+
+    float fpsClamped = clamp(uFpsValue, 0.0, 999.9);
+    int fpsInt = int(floor(fpsClamped));
+    int d2 = fpsInt / 100;
+    int d1 = (fpsInt / 10) % 10;
+    int d0 = fpsInt % 10;
+    int dT = int(clamp(floor(fract(fpsClamped) * 10.0), 0.0, 9.0));
+
+    float ink = 0.0;
+    ink = max(ink, drawOverlayGlyph(topCoord, origin, 0, 0, 5, scale));   // F
+    ink = max(ink, drawOverlayGlyph(topCoord, origin, 1, 0, 15, scale));  // P
+    ink = max(ink, drawOverlayGlyph(topCoord, origin, 2, 0, 18, scale));  // S
+    if (d2 > 0) {
+        ink = max(ink, drawOverlayGlyph(topCoord, origin, 4, 1, d2, scale));
+    }
+    if (d2 > 0 || d1 > 0) {
+        ink = max(ink, drawOverlayGlyph(topCoord, origin, 5, 1, d1, scale));
+    }
+    ink = max(ink, drawOverlayGlyph(topCoord, origin, 6, 1, d0, scale));
+    ink = max(ink, drawOverlayGlyph(topCoord, origin, 7, 2, 0, scale));
+    ink = max(ink, drawOverlayGlyph(topCoord, origin, 8, 1, dT, scale));
+
+    if (ink > 0.0) {
+        color = mix(color, vec3(1.0), clamp(ink, 0.0, 1.0));
+    }
+    return color;
+}
+
 vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleBase = uv;
     if (uColorMode == 2) {
@@ -273,7 +367,10 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 
     vec3 camColor = liftShadows(texture(iChannel0, sampleUV).rgb);
     float luma = getLuma(camColor);
-    float boosted = clamp(pow(luma, 0.86), 0.0, 1.0);
+    float shadowBoost = 1.0 - smoothstep(0.08, 0.58, luma);
+    float boosted = clamp(luma + shadowBoost * 0.18, 0.0, 1.0);
+    boosted = clamp(pow(boosted, 0.83), 0.0, 1.0);
+    vec3 camLifted = clamp(camColor + vec3(0.10 * shadowBoost), 0.0, 1.0);
 
     bool letters = (uColorMode >= 2);
     bool invertMode = (uColorMode >= 2);
@@ -295,13 +392,13 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 
     vec3 tint;
     if (uColorMode == 0) {
-        tint = camColor;
+        tint = camLifted;
     } else if (uColorMode == 1) {
         tint = vec3(boosted);
     } else if (uColorMode == 2) {
         tint = vec3(1.0 - boosted);
     } else {
-        tint = 1.0 - camColor.bgr;
+        tint = 1.0 - camLifted.bgr;
         tint = pow(tint, vec3(0.86)) * vec3(1.18, 1.08, 1.25);
     }
 
@@ -309,7 +406,7 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     float vignette = pow(clamp(16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y), 0.0, 1.0), 0.25);
     float noise = (hash12(cellId + floor(iTime * 18.0)) - 0.5) * 0.040;
 
-    float bgLevel = invertMode ? (0.10 + (1.0 - tone) * 0.14) : (0.03 + tone * 0.04);
+    float bgLevel = invertMode ? (0.12 + (1.0 - tone) * 0.16) : (0.05 + tone * 0.05);
     vec3 color = vec3(bgLevel) * tint;
     color += tint * glyph * (0.45 + tone * 1.25);
     color += noise * (0.15 + glyph * 0.85);

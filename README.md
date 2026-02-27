@@ -21,13 +21,18 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
 ```
 
 ## Controls
-- `Arrow Up/Down`: cycle color modes.
+- `Arrow Up/Down`: cycle color modes (infinite loop).
 - `Arrow Left/Right`:
   - in `Rutt-Etra`: increase/decrease wave intensity/frequency.
   - in `ASCII Cam`: increase/decrease character density.
 - `Space`: switch effect mode (Rutt-Etra / ASCII Cam).
-- `F`: switch view mode (`16:9` / `4:3` / `Fisheye`).
+- `F`: toggle FPS logging in terminal.
+- `V`: switch view mode (`16:9` / `4:3` / `Fisheye`).
 - `Ctrl+C`: stop rendering.
+
+Default startup modes:
+- `Rutt-Etra`: starts on color mode 3 (`Prism Warp`).
+- `ASCII Cam`: starts on color mode 1 (`Color symbols`).
 
 ## Color Modes
 - `Rutt-Etra`: `B/W`, `Colors`, `Prism Warp`, `Acid Melt`.

@@ -54,11 +54,13 @@ loc_ascii_density = -1
 loc_effect_mode = -1
 loc_view_mode = -1
 loc_camera_aspect = -1
-current_color_mode = 0
+current_rutt_color_mode = 2
+current_ascii_color_mode = 0
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
 current_effect_mode = 0
 current_view_mode = 2
+current_show_fps = 0
 RUTT_WAVE_STEP = 0.10
 RUTT_WAVE_MIN = 0.40
 RUTT_WAVE_MAX = 3.80
@@ -72,6 +74,11 @@ EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
 _quiet_stdin_w = None
+_fps_last_frame = None
+_fps_last_time = None
+_fps_smoothed = 0.0
+_fps_last_report_time = None
+_ctrl_c_requested = False
 
 def _detach_stdin_from_renderer():
     # kms-glsl treats any readable stdin as "user interrupted".
@@ -93,14 +100,51 @@ def _request_renderer_stop():
     glsl.stop()
 
 def _color_mode_name():
+    return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode] if current_effect_mode == 0 else ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
+
+def _active_color_mode():
+    return current_rutt_color_mode if current_effect_mode == 0 else current_ascii_color_mode
+
+def _set_active_color_mode(mode):
+    global current_rutt_color_mode, current_ascii_color_mode
     if current_effect_mode == 0:
-        return RUTT_COLOR_MODE_NAMES[current_color_mode]
-    return ASCII_COLOR_MODE_NAMES[current_color_mode]
+        current_rutt_color_mode = mode % len(RUTT_COLOR_MODE_NAMES)
+    else:
+        current_ascii_color_mode = mode % len(ASCII_COLOR_MODE_NAMES)
+
+def _cycle_active_color_mode(step):
+    _set_active_color_mode(_active_color_mode() + step)
+    print(f'\r[COLOR] {_color_mode_name()}        ')
 
 def _effect_param_label():
     if current_effect_mode == 0:
         return f'[RUTT] Wave {current_rutt_wave:.2f}x'
     return f'[ASCII] Density {current_ascii_density:.2f}x'
+
+def _toggle_fps_logging():
+    global current_show_fps, _fps_last_report_time
+    current_show_fps = 0 if current_show_fps else 1
+    _fps_last_report_time = None
+    if current_show_fps:
+        print('\r[FPS] LOG ON (terminal only)        ')
+    else:
+        print('\r[FPS] LOG OFF        ')
+
+def _print_startup_banner():
+    print('\n=== Retina Cannon Boot ===')
+    print(f'[Startup] Camera: {CAM_W}x{CAM_H} | View: {VIEW_MODE_NAMES[current_view_mode]}')
+    print(f'[Startup] Rutt default: {RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]} | ASCII default: {ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]}')
+    print('[Controls] Arrow Up/Down: cycle color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | V: view | F: fps log | Ctrl+C: quit')
+
+def _print_shutdown_banner(reason):
+    print('\n[Shutdown] Renderer stop requested.')
+    print('[Shutdown] Camera stream offline.')
+    if reason == 'ctrl_c':
+        print('[Goodbye] Bersaglio perso, ma il cannone torna presto. Arrivederci!')
+    elif reason.startswith('init_error') or reason.startswith('run_error'):
+        print(f'[Goodbye] Uscita con errore ({reason}).')
+    else:
+        print('[Goodbye] Sessione chiusa. Ci vediamo al prossimo test visivo.')
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
@@ -132,6 +176,8 @@ def on_init(program, width, height):
     loc_channel0 = glsl.glGetUniformLocation(program, b'iChannel0')
     if loc_channel0 >= 0:
         glsl.glUniform1i(loc_channel0, 0)
+    if loc_color_mode >= 0:
+        glsl.glUniform1i(loc_color_mode, _active_color_mode())
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
@@ -144,10 +190,11 @@ def on_init(program, width, height):
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
-    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | F: view')
+    _print_startup_banner()
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
+    global _fps_last_frame, _fps_last_time, _fps_smoothed, _fps_last_report_time
     with _lock:
         f = _frame
     data = f.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
@@ -156,7 +203,7 @@ def on_render(frame, time):
     glsl.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CAM_W, CAM_H,
                          GL_RGB, GL_UNSIGNED_BYTE, data)
     if loc_color_mode >= 0:
-        glsl.glUniform1i(loc_color_mode, current_color_mode)
+        glsl.glUniform1i(loc_color_mode, _active_color_mode())
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
@@ -167,6 +214,21 @@ def on_render(frame, time):
         glsl.glUniform1i(loc_view_mode, current_view_mode)
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
+    if _fps_last_time is not None and time > _fps_last_time and frame >= _fps_last_frame:
+        dt = time - _fps_last_time
+        df = frame - _fps_last_frame
+        if dt > 0.0:
+            inst = float(df) / float(dt)
+            if _fps_smoothed <= 0.0:
+                _fps_smoothed = inst
+            else:
+                _fps_smoothed = _fps_smoothed * 0.86 + inst * 0.14
+    _fps_last_frame = frame
+    _fps_last_time = time
+    if current_show_fps and _fps_smoothed > 0.0:
+        if _fps_last_report_time is None or (time - _fps_last_report_time) >= 1.0:
+            print(f'\r[FPS] {_fps_smoothed:5.1f} fps | {EFFECT_MODE_NAMES[current_effect_mode]} | {_color_mode_name()}        ')
+            _fps_last_report_time = time
 
 glsl.onInit(on_init)
 glsl.onRender(on_render)
@@ -205,8 +267,8 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_color_mode, current_rutt_wave, current_ascii_density
-    global current_effect_mode, current_view_mode
+    global current_rutt_wave, current_ascii_density
+    global current_effect_mode, current_view_mode, _ctrl_c_requested
     import termios, tty
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
@@ -226,6 +288,7 @@ def keyboard_thread():
                 continue
             ch = b.decode('latin1', errors='ignore')
             if ch == '\x03':  # Ctrl+C
+                _ctrl_c_requested = True
                 _request_renderer_stop()
                 break
             if ch == ' ':
@@ -233,6 +296,9 @@ def keyboard_thread():
                 print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]} | [COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
                 continue
             if ch in ('f', 'F'):
+                _toggle_fps_logging()
+                continue
+            if ch in ('v', 'V'):
                 current_view_mode = (current_view_mode + 1) % len(VIEW_MODE_NAMES)
                 print(f'\r[VIEW] {VIEW_MODE_NAMES[current_view_mode]}        ')
                 continue
@@ -240,11 +306,9 @@ def keyboard_thread():
                 seq = _read_escape_sequence(fd)
                 direction = _decode_arrow(seq)
                 if direction == 'up':
-                    current_color_mode = (current_color_mode + 1) % 4
-                    print(f'\r[COLOR] {_color_mode_name()}        ')
+                    _cycle_active_color_mode(+1)
                 elif direction == 'down':
-                    current_color_mode = (current_color_mode - 1) % 4
-                    print(f'\r[COLOR] {_color_mode_name()}        ')
+                    _cycle_active_color_mode(-1)
                 elif direction == 'right':
                     if current_effect_mode == 0:
                         current_rutt_wave = min(RUTT_WAVE_MAX, current_rutt_wave + RUTT_WAVE_STEP)
@@ -257,6 +321,9 @@ def keyboard_thread():
                     else:
                         current_ascii_density = max(ASCII_DENSITY_MIN, current_ascii_density - ASCII_DENSITY_STEP)
                     print(f'\r{_effect_param_label()}        ')
+                elif seq and seq[-1] in ('F', 'f'):
+                    # Fallback for terminals that emit ESC...F for this key.
+                    _toggle_fps_logging()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
         os.close(fd)
@@ -281,20 +348,33 @@ class FakeArgs:
     keyboard = None
 
 ret = glsl.init(bytes(args.shader, 'utf-8'), byref(options(FakeArgs())))
-if ret != 0:
-    sys.exit(ret)
-
-ret = glsl.run()
-if ret != 0:
-    sys.exit(ret)
+shutdown_reason = 'normal'
 try:
-    glsl.join()
-except KeyboardInterrupt:
-    _request_renderer_stop()
-    glsl.join()
+    if ret != 0:
+        shutdown_reason = f'init_error:{ret}'
+    else:
+        ret = glsl.run()
+        if ret != 0:
+            shutdown_reason = f'run_error:{ret}'
+        else:
+            try:
+                glsl.join()
+            except KeyboardInterrupt:
+                _ctrl_c_requested = True
+                _request_renderer_stop()
+                glsl.join()
+            if _ctrl_c_requested:
+                shutdown_reason = 'ctrl_c'
+finally:
+    _running = False
+    try:
+        picam.stop()
+        picam.close()
+    except Exception:
+        pass
+    if _quiet_stdin_w is not None:
+        os.close(_quiet_stdin_w)
+    _print_shutdown_banner(shutdown_reason)
 
-_running = False
-picam.stop()
-picam.close()
-if _quiet_stdin_w is not None:
-    os.close(_quiet_stdin_w)
+if ret != 0:
+    sys.exit(ret)
