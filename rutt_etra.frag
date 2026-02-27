@@ -200,9 +200,12 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
 
     float lineY = normI + luma * (EXTRUSION * uRuttWave);
     float dist = abs(sampleBase.y - lineY);
+    float baseDist = abs(sampleBase.y - normI);
 
     float lineAlpha = 1.0 - smoothstep(0.0, LINE_WIDTH, dist);
     float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.24 * luma;
+    float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, baseDist);
+    float haze = (1.0 - smoothstep(0.0, LINE_WIDTH * 12.0, dist)) * 0.08 * luma;
 
     vec3 camColor = liftShadows(texture(iChannel0, safeUV(sampleUV)).rgb);
     vec3 lineCol;
@@ -234,7 +237,8 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float vignette = pow(clamp(16.0 * sampleBase.x * sampleBase.y * (1.0 - sampleBase.x) * (1.0 - sampleBase.y), 0.0, 1.0), 0.20);
     float noise = (hash12(fragCoord + vec2(iTime * 48.0, iTime * 17.0)) - 0.5) * NOISE_STRENGTH;
 
-    vec3 color = lineCol * (lineAlpha + glow);
+    vec3 color = lineCol * (lineAlpha + glow + haze);
+    color += lineCol * scaffold * (0.06 + 0.14 * luma);
     color *= scan * grille * mix(0.72, 1.0, vignette);
     color *= 1.34;
     color += noise;
@@ -243,7 +247,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
 
 vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     float charAspect = 1.85;
-    float density = clamp(uAsciiDensity, 0.55, 2.40);
+    float density = clamp(uAsciiDensity, 1.00, 6.00);
     vec2 grid = vec2(94.0 * density, floor(94.0 * density * iResolution.y / iResolution.x / charAspect));
     grid.y = max(grid.y, 18.0);
 
