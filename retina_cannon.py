@@ -52,10 +52,13 @@ loc_color_mode = -1
 loc_rutt_wave = -1
 loc_ascii_density = -1
 loc_effect_mode = -1
+loc_view_mode = -1
+loc_camera_aspect = -1
 current_color_mode = 0
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
 current_effect_mode = 0
+current_view_mode = 2
 RUTT_WAVE_STEP = 0.10
 RUTT_WAVE_MIN = 0.40
 RUTT_WAVE_MAX = 3.80
@@ -66,6 +69,7 @@ ASCII_DENSITY_MAX = 6.00
 RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
 ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono letters', 'Inverted color letters']
 EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam']
+VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
 _quiet_stdin_w = None
 
@@ -100,12 +104,15 @@ def _effect_param_label():
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
-    global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density, loc_effect_mode
+    global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density
+    global loc_effect_mode, loc_view_mode, loc_camera_aspect
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
     loc_rutt_wave = glsl.glGetUniformLocation(program, b'uRuttWave')
     loc_ascii_density = glsl.glGetUniformLocation(program, b'uAsciiDensity')
     loc_effect_mode = glsl.glGetUniformLocation(program, b'uEffectMode')
+    loc_view_mode = glsl.glGetUniformLocation(program, b'uViewMode')
+    loc_camera_aspect = glsl.glGetUniformLocation(program, b'uCameraAspect')
 
     # Create the texture manually
     tid = c_uint(0)
@@ -131,9 +138,13 @@ def on_init(program, width, height):
         glsl.glUniform1f(loc_ascii_density, c_float(current_ascii_density))
     if loc_effect_mode >= 0:
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
+    if loc_view_mode >= 0:
+        glsl.glUniform1i(loc_view_mode, current_view_mode)
+    if loc_camera_aspect >= 0:
+        glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
-    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode')
+    print('[Controls] Arrow Up/Down: color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | F: view')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -152,6 +163,10 @@ def on_render(frame, time):
         glsl.glUniform1f(loc_ascii_density, c_float(current_ascii_density))
     if loc_effect_mode >= 0:
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
+    if loc_view_mode >= 0:
+        glsl.glUniform1i(loc_view_mode, current_view_mode)
+    if loc_camera_aspect >= 0:
+        glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
 
 glsl.onInit(on_init)
 glsl.onRender(on_render)
@@ -190,7 +205,8 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_color_mode, current_rutt_wave, current_ascii_density, current_effect_mode
+    global current_color_mode, current_rutt_wave, current_ascii_density
+    global current_effect_mode, current_view_mode
     import termios, tty
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
@@ -215,6 +231,10 @@ def keyboard_thread():
             if ch == ' ':
                 current_effect_mode = (current_effect_mode + 1) % len(EFFECT_MODE_NAMES)
                 print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]} | [COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
+                continue
+            if ch in ('f', 'F'):
+                current_view_mode = (current_view_mode + 1) % len(VIEW_MODE_NAMES)
+                print(f'\r[VIEW] {VIEW_MODE_NAMES[current_view_mode]}        ')
                 continue
             if ch == '\x1b':
                 seq = _read_escape_sequence(fd)

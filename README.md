@@ -26,6 +26,7 @@ It captures live video, feeds it into a GLSL pipeline, and renders a CRT-style e
   - in `Rutt-Etra`: increase/decrease wave intensity/frequency.
   - in `ASCII Cam`: increase/decrease character density.
 - `Space`: switch effect mode (Rutt-Etra / ASCII Cam).
+- `F`: switch view mode (`16:9` / `4:3` / `Fisheye`).
 - `Ctrl+C`: stop rendering.
 
 ## Color Modes

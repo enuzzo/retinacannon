@@ -3,6 +3,8 @@ uniform int uColorMode;
 uniform float uRuttWave;
 uniform float uAsciiDensity;
 uniform int uEffectMode;
+uniform int uViewMode;
+uniform float uCameraAspect;
 
 #define LINES 72.0
 #define LINE_WIDTH 0.0015
@@ -103,6 +105,19 @@ vec2 warpCRT(vec2 uv) {
     float r2 = dot(p, p);
     p *= 1.0 + CRT_CURVATURE * r2;
     return p * 0.5 + 0.5;
+}
+
+vec2 mapCameraAspect(vec2 uv, float targetAspect) {
+    float srcAspect = max(uCameraAspect, 0.1);
+    vec2 outUV = uv;
+    if (targetAspect > srcAspect) {
+        float scaleY = srcAspect / targetAspect;
+        outUV.y = (uv.y - 0.5) * scaleY + 0.5;
+    } else if (targetAspect < srcAspect) {
+        float scaleX = targetAspect / srcAspect;
+        outUV.x = (uv.x - 0.5) * scaleX + 0.5;
+    }
+    return outUV;
 }
 
 float glyphSymbolInk(vec2 p, int level) {
@@ -304,7 +319,14 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    uv = warpCRT(uv);
+    if (uViewMode == 0) {
+        uv = mapCameraAspect(uv, 16.0 / 9.0);
+    } else if (uViewMode == 1) {
+        uv = mapCameraAspect(uv, 4.0 / 3.0);
+    } else {
+        uv = mapCameraAspect(uv, 4.0 / 3.0);
+        uv = warpCRT(uv);
+    }
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
