@@ -9,13 +9,13 @@ RETINA_DIR = Path(__file__).resolve().parent
 _kms_env = os.environ.get('KMS_GLSL_DIR', '')
 KMS_GLSL_DIR = Path(_kms_env).resolve() if _kms_env else None
 
-if KMS_GLSL_DIR is None or not (KMS_GLSL_DIR / 'lib').is_dir():
+if KMS_GLSL_DIR is None or not (KMS_GLSL_DIR / 'glsl.so').is_file():
     KMS_GLSL_DIR = None
     for _candidate in [
         RETINA_DIR.parent / 'kms-glsl',
         Path.home() / 'kms-glsl',
     ]:
-        if (_candidate / 'lib').is_dir():
+        if (_candidate / 'glsl.so').is_file():
             KMS_GLSL_DIR = _candidate.resolve()
             break
 

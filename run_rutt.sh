@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Resolve kms-glsl: KMS_GLSL_DIR env var > ../kms-glsl > ~/kms-glsl
 if [ -z "${KMS_GLSL_DIR:-}" ]; then
     for _d in "$SCRIPT_DIR/../kms-glsl" "$HOME/kms-glsl"; do
-        if [ -d "$_d/lib" ]; then
+        if [ -f "$_d/glsl.so" ]; then
             KMS_GLSL_DIR="$(cd "$_d" && pwd)"
             break
         fi
