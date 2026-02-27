@@ -8,6 +8,10 @@ uniform float uCameraAspect;
 uniform int uShowFps;
 uniform float uFpsValue;
 uniform float uPixelSize;
+uniform float uMotionLevel;
+uniform float uPresenceScale;
+uniform float uPresenceCX;
+uniform float uPresenceCY;
 
 #define LINES 72.0
 #define LINE_WIDTH 0.0015
@@ -499,6 +503,128 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
     return clamp(col, 0.0, 1.0);
 }
 
+// ── Signal Ghost ────────────────────────────────────────────────────────────
+//
+//  A living field of letters that breathes and flows with your presence.
+//  Motion detection (CPU-side) drives two uniforms:
+//    uPresenceScale  — overall brightness: 0 = nobody, 1 = very close
+//    uMotionLevel    — frame-diff magnitude: 0 = still, 1 = strong motion
+//    uPresenceCX/CY  — weighted centroid of bright regions (0..1)
+//
+//  uColorMode:
+//    0  Void          — white glyphs on black, minimal
+//    1  Matrix        — classic green terminal rain
+//    2  Ghost Cam     — letters tinted by camera color, dim camera bg
+//    3  Neon          — position-driven hue rotation, glowing
+//    4  Thermal       — FLIR jet coloring per local luminance
+//    5  Chromatic     — RGB channels split by motion intensity
+//
+//  uAsciiDensity: field density (0.5 → 5.0), left/right arrow
+
+vec3 renderSignalGhost(vec2 uv, vec2 fragCoord) {
+    float presence = clamp(uPresenceScale * 2.2, 0.0, 1.0);
+    float motion   = clamp(uMotionLevel, 0.0, 1.0);
+    vec2  presPos  = vec2(uPresenceCX, uPresenceCY);
+
+    // Flow field: smooth UV warp that stirs with motion and presence
+    vec2 flow = vec2(
+        sin(iTime * 0.22 + uv.y * 5.1 + uPresenceCY * 3.14) * 0.018,
+        cos(iTime * 0.17 + uv.x * 4.3 + uPresenceCX * 3.14) * 0.014
+    ) * (0.4 + motion * 2.5 + presence * 0.6);
+
+    // Radial pull toward presence centroid — letters lean in when you approach
+    vec2 toPresence = presPos - uv;
+    flow += normalize(toPresence + vec2(0.001)) * motion * 0.022;
+
+    vec2 wUV = uv + flow;
+
+    // Grid
+    float cols = 8.0 + uAsciiDensity * 7.0;          // 11 – 43 columns
+    float rows = floor(cols * iResolution.y / iResolution.x * 0.65);
+    vec2  cellCount = vec2(cols, max(rows, 8.0));
+    vec2  gridUV    = wUV * cellCount;
+    vec2  cellId    = floor(gridUV);
+    vec2  cellUV    = fract(gridUV);                  // 0..1 within cell
+
+    // Per-cell personality
+    float ch  = hash12(cellId);
+    float ch2 = hash12(cellId * 2.3 + 1.7);
+
+    // Sample camera at this cell's position for color and local energy
+    vec2 sampleUV = safeUV((cellId + 0.5) / cellCount);
+    vec3 camCol   = texture(iChannel0, sampleUV).bgr;  // BGR→RGB
+    float cellLuma = liftShadowLuma(getLuma(camCol));
+
+    // Letter: changes faster during motion, each cell staggered by ch
+    float changeRate = 0.06 + motion * 5.0 + presence * 0.8;
+    float slot       = floor(iTime * changeRate + ch * 8.0);
+    int   letter     = clamp(int(floor(hash12(cellId + vec2(slot * 0.09, slot * 0.13)) * 26.0)), 0, 25);
+
+    // Scale: breathes slowly; expands when someone is present or moving
+    float breathe = 0.5 + 0.5 * sin(iTime * (0.35 + ch * 0.9) + ch * 6.28);
+    float scale   = clamp(
+        0.12 + breathe * 0.14 + presence * 0.55 + cellLuma * 0.35 + motion * ch * 0.22,
+        0.06, 1.05
+    );
+
+    // Wobble offset within cell driven by motion
+    vec2 wobble = vec2(ch - 0.5, ch2 - 0.5) * motion * 0.18;
+    vec2 letterUV = (cellUV - 0.5 - wobble) / scale + 0.5;
+
+    float ink = 0.0;
+    if (letterUV.x >= 0.0 && letterUV.x < 1.0 && letterUV.y >= 0.0 && letterUV.y < 1.0) {
+        ink = glyphUpperInk(clamp(letterUV, 0.0, 0.999), letter);
+    }
+
+    float glow = smoothstep(0.0, 0.45, ink) * (0.25 + cellLuma * 0.35 + presence * 0.40);
+
+    vec3 col;
+
+    if (uColorMode == 0) {
+        // ── Void: white on black ────────────────────────────────────────────
+        float v = ink * (0.55 + presence * 0.45) + glow * 0.18;
+        col = vec3(v);
+
+    } else if (uColorMode == 1) {
+        // ── Matrix: green terminal ───────────────────────────────────────────
+        float g = ink * (0.45 + cellLuma * 0.35 + presence * 0.20);
+        col = vec3(g * 0.15, g, g * 0.08);
+        col += vec3(0.0, glow * 0.12, 0.0);
+
+    } else if (uColorMode == 2) {
+        // ── Ghost Cam: letters tinted by camera, dim ghost bg ────────────────
+        col  = camCol * ink * (0.55 + presence * 0.45);
+        col += camCol * 0.06;                          // very dim camera ghost
+
+    } else if (uColorMode == 3) {
+        // ── Neon: position-driven hue, glowing ──────────────────────────────
+        float hue = fract(uv.x * 0.4 + uv.y * 0.25 + iTime * 0.04 + motion * 0.25);
+        vec3  c   = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        col = c * ink * (0.75 + presence * 0.25);
+        col += c * glow * 0.35;
+
+    } else if (uColorMode == 4) {
+        // ── Thermal: FLIR jet per cell luminance ─────────────────────────────
+        float t = cellLuma;
+        float r = clamp(1.5 - abs(4.0 * t - 3.0), 0.0, 1.0);
+        float g = clamp(1.5 - abs(4.0 * t - 2.0), 0.0, 1.0);
+        float b = clamp(1.5 - abs(4.0 * t - 1.0), 0.0, 1.0);
+        vec3  tc = mix(vec3(r, g, b), vec3(1.0), smoothstep(0.88, 1.0, cellLuma));
+        col  = tc * ink * (0.7 + presence * 0.3);
+        col += tc * glow * 0.20;
+
+    } else {
+        // ── Chromatic: RGB channels offset by motion ─────────────────────────
+        float shift = motion * 0.010;
+        float rL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV + vec2( shift, 0.0))).bgr));
+        float bL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).bgr));
+        col  = vec3(ink * rL, ink * cellLuma, ink * bL) * (0.8 + presence * 0.5 + motion * 0.3);
+        col += glow * vec3(0.08, 0.0, 0.18);
+    }
+
+    return clamp(col, 0.0, 1.0);
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     if (uViewMode == 0) {
@@ -519,8 +645,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         color = renderRutt(uv, fragCoord);
     } else if (uEffectMode == 1) {
         color = renderAscii(uv, fragCoord);
-    } else {
+    } else if (uEffectMode == 2) {
         color = renderPixelArt(uv, fragCoord);
+    } else {
+        color = renderSignalGhost(uv, fragCoord);
     }
     fragColor = vec4(color, 1.0);
 }

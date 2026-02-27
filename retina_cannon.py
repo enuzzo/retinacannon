@@ -56,11 +56,33 @@ _lock = threading.Lock()
 _running = True
 
 def _capture_loop():
+    global _frame, _prev_luma_small, _motion_level, _presence_scale, _presence_cx, _presence_cy
     while _running:
         f = picam.capture_array()
         with _lock:
-            global _frame
             _frame = f
+        # Motion & presence detection at 1/16 resolution — camera is BGR888
+        try:
+            S = 16
+            small = f[::S, ::S]
+            # luma from BGR: R=ch2, G=ch1, B=ch0
+            luma = (0.299 * small[:,:,2] + 0.587 * small[:,:,1] + 0.114 * small[:,:,0]).astype(np.float32) / 255.0
+            _presence_scale = float(np.mean(luma))
+            if _prev_luma_small is not None and _prev_luma_small.shape == luma.shape:
+                diff = np.abs(luma - _prev_luma_small)
+                _motion_level = float(np.clip(np.mean(diff) * 14.0, 0.0, 1.0))
+            # Weighted centroid of bright regions
+            thresh = max(_presence_scale * 1.3, 0.10)
+            bright = np.where(luma > thresh, luma, 0.0)
+            total = bright.sum()
+            if total > 0:
+                h, w = luma.shape
+                ys, xs = np.mgrid[0:h, 0:w]
+                _presence_cx = float((xs * bright).sum() / total / w)
+                _presence_cy = 1.0 - float((ys * bright).sum() / total / h)
+            _prev_luma_small = luma
+        except Exception:
+            pass
 
 threading.Thread(target=_capture_loop, daemon=True).start()
 
@@ -75,14 +97,23 @@ loc_effect_mode = -1
 loc_view_mode = -1
 loc_camera_aspect = -1
 loc_pixelart_size = -1
+loc_motion_level = -1
+loc_presence_scale = -1
+loc_presence_cx = -1
+loc_presence_cy = -1
 current_rutt_color_mode = 2
 current_ascii_color_mode = 0
 current_pixelart_color_mode = 0
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
 current_pixelart_size = 8.0
+current_ghost_color_mode = 0
+current_ghost_density = 2.0
+GHOST_DENSITY_STEP = 0.25
+GHOST_DENSITY_MIN = 0.5
+GHOST_DENSITY_MAX = 5.0
 current_effect_mode = 0
-current_view_mode = 2
+current_view_mode = 0
 current_show_fps = 0
 RUTT_WAVE_STEP = 0.10
 RUTT_WAVE_MIN = 0.40
@@ -97,7 +128,8 @@ PIXELART_SIZE_MAX = 48.0
 RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
 ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono letters', 'Inverted color letters']
 PIXELART_COLOR_MODE_NAMES = ['Full Color', 'Game Boy', 'CGA', 'Phosphor', 'Amber', 'Infrared']
-EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art']
+GHOST_COLOR_MODE_NAMES = ['Void', 'Matrix', 'Ghost Cam', 'Neon', 'Thermal', 'Chromatic']
+EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art', 'Signal Ghost']
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
 _quiet_stdin_w = None
@@ -108,6 +140,11 @@ _fps_last_report_time = None
 _ctrl_c_requested = False
 _session_start = None
 _shader_name = ''
+_prev_luma_small = None
+_motion_level = 0.0
+_presence_scale = 0.0
+_presence_cx = 0.5
+_presence_cy = 0.5
 
 _BOOT_QUOTES = [
     '"The map is not the territory."  — Korzybski',
@@ -223,38 +260,34 @@ def _request_renderer_stop():
     glsl.stop()
 
 def _color_mode_name():
-    if current_effect_mode == 0:
-        return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]
-    elif current_effect_mode == 1:
-        return ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
-    return PIXELART_COLOR_MODE_NAMES[current_pixelart_color_mode]
+    if current_effect_mode == 0:   return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]
+    if current_effect_mode == 1:   return ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
+    if current_effect_mode == 2:   return PIXELART_COLOR_MODE_NAMES[current_pixelart_color_mode]
+    return GHOST_COLOR_MODE_NAMES[current_ghost_color_mode]
 
 def _active_color_mode():
-    if current_effect_mode == 0:
-        return current_rutt_color_mode
-    elif current_effect_mode == 1:
-        return current_ascii_color_mode
-    return current_pixelart_color_mode
+    if current_effect_mode == 0:   return current_rutt_color_mode
+    if current_effect_mode == 1:   return current_ascii_color_mode
+    if current_effect_mode == 2:   return current_pixelart_color_mode
+    return current_ghost_color_mode
 
 def _set_active_color_mode(mode):
-    global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_color_mode
-    if current_effect_mode == 0:
-        current_rutt_color_mode = mode % len(RUTT_COLOR_MODE_NAMES)
-    elif current_effect_mode == 1:
-        current_ascii_color_mode = mode % len(ASCII_COLOR_MODE_NAMES)
-    else:
-        current_pixelart_color_mode = mode % len(PIXELART_COLOR_MODE_NAMES)
+    global current_rutt_color_mode, current_ascii_color_mode
+    global current_pixelart_color_mode, current_ghost_color_mode
+    if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
+    elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
+    elif current_effect_mode == 2: current_pixelart_color_mode    = mode % len(PIXELART_COLOR_MODE_NAMES)
+    else:                          current_ghost_color_mode        = mode % len(GHOST_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
     print(f'\r[COLOR] {_color_mode_name()}        ')
 
 def _effect_param_label():
-    if current_effect_mode == 0:
-        return f'[RUTT] Wave {current_rutt_wave:.2f}x'
-    elif current_effect_mode == 1:
-        return f'[ASCII] Density {current_ascii_density:.2f}x'
-    return f'[PIXEL] Size {int(current_pixelart_size)}px'
+    if current_effect_mode == 0:   return f'[RUTT] Wave {current_rutt_wave:.2f}x'
+    if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x'
+    if current_effect_mode == 2:   return f'[PIXEL] Size {int(current_pixelart_size)}px'
+    return f'[GHOST] Density {current_ghost_density:.2f}x'
 
 def _toggle_fps_logging():
     global current_show_fps, _fps_last_report_time
@@ -316,16 +349,7 @@ def _print_startup_banner():
 
 def _print_shutdown_banner(reason):
     print()
-
-    # Logo corruption: each line degrades progressively
-    amounts = [0.15, 0.35, 0.55, 0.75, 0.90, 1.0]
-    for i, line in enumerate(RETINA_CANNON_ASCII):
-        amount = amounts[min(i, len(amounts) - 1)]
-        corrupted = _corrupt_line(line, amount)
-        color = ANSI_RED if i >= 3 else ANSI_YELLOW
-        print(_styled(corrupted, color, dim=(i >= 2)))
-        time.sleep(0.035)
-    print(_styled('░░░░░░░ signal lost ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░', ANSI_RED, dim=True))
+    _print_retina_logo(offset=3)
     print()
 
     # Session stats
@@ -353,6 +377,7 @@ def _print_shutdown_banner(reason):
 def on_init(program, width, height):
     global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density
     global loc_effect_mode, loc_view_mode, loc_camera_aspect, loc_pixelart_size
+    global loc_motion_level, loc_presence_scale, loc_presence_cx, loc_presence_cy
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
     loc_rutt_wave = glsl.glGetUniformLocation(program, b'uRuttWave')
@@ -360,7 +385,11 @@ def on_init(program, width, height):
     loc_effect_mode = glsl.glGetUniformLocation(program, b'uEffectMode')
     loc_view_mode = glsl.glGetUniformLocation(program, b'uViewMode')
     loc_camera_aspect = glsl.glGetUniformLocation(program, b'uCameraAspect')
-    loc_pixelart_size = glsl.glGetUniformLocation(program, b'uPixelSize')
+    loc_pixelart_size   = glsl.glGetUniformLocation(program, b'uPixelSize')
+    loc_motion_level    = glsl.glGetUniformLocation(program, b'uMotionLevel')
+    loc_presence_scale  = glsl.glGetUniformLocation(program, b'uPresenceScale')
+    loc_presence_cx     = glsl.glGetUniformLocation(program, b'uPresenceCX')
+    loc_presence_cy     = glsl.glGetUniformLocation(program, b'uPresenceCY')
 
     # Create the texture manually
     tid = c_uint(0)
@@ -413,7 +442,8 @@ def on_render(frame, time):
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
-        glsl.glUniform1f(loc_ascii_density, c_float(current_ascii_density))
+        _d = current_ghost_density if current_effect_mode == 3 else current_ascii_density
+        glsl.glUniform1f(loc_ascii_density, c_float(_d))
     if loc_effect_mode >= 0:
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
     if loc_view_mode >= 0:
@@ -422,6 +452,14 @@ def on_render(frame, time):
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
     if loc_pixelart_size >= 0:
         glsl.glUniform1f(loc_pixelart_size, c_float(current_pixelart_size))
+    if loc_motion_level >= 0:
+        glsl.glUniform1f(loc_motion_level, c_float(min(_motion_level, 1.0)))
+    if loc_presence_scale >= 0:
+        glsl.glUniform1f(loc_presence_scale, c_float(min(_presence_scale, 1.0)))
+    if loc_presence_cx >= 0:
+        glsl.glUniform1f(loc_presence_cx, c_float(_presence_cx))
+    if loc_presence_cy >= 0:
+        glsl.glUniform1f(loc_presence_cy, c_float(_presence_cy))
     if _fps_last_time is not None and time > _fps_last_time and frame >= _fps_last_frame:
         dt = time - _fps_last_time
         df = frame - _fps_last_frame
@@ -486,7 +524,7 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_rutt_wave, current_ascii_density, current_pixelart_size
+    global current_rutt_wave, current_ascii_density, current_pixelart_size, current_ghost_density
     global current_effect_mode, current_view_mode, _ctrl_c_requested
     import termios
     try:
@@ -535,16 +573,20 @@ def keyboard_thread():
                         current_rutt_wave = min(RUTT_WAVE_MAX, current_rutt_wave + RUTT_WAVE_STEP)
                     elif current_effect_mode == 1:
                         current_ascii_density = min(ASCII_DENSITY_MAX, current_ascii_density + ASCII_DENSITY_STEP)
-                    else:
+                    elif current_effect_mode == 2:
                         current_pixelart_size = min(PIXELART_SIZE_MAX, current_pixelart_size + PIXELART_SIZE_STEP)
+                    else:
+                        current_ghost_density = min(GHOST_DENSITY_MAX, current_ghost_density + GHOST_DENSITY_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
                     if current_effect_mode == 0:
                         current_rutt_wave = max(RUTT_WAVE_MIN, current_rutt_wave - RUTT_WAVE_STEP)
                     elif current_effect_mode == 1:
                         current_ascii_density = max(ASCII_DENSITY_MIN, current_ascii_density - ASCII_DENSITY_STEP)
-                    else:
+                    elif current_effect_mode == 2:
                         current_pixelart_size = max(PIXELART_SIZE_MIN, current_pixelart_size - PIXELART_SIZE_STEP)
+                    else:
+                        current_ghost_density = max(GHOST_DENSITY_MIN, current_ghost_density - GHOST_DENSITY_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):
                     # Fallback for terminals that emit ESC...F for this key.
