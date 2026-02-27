@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, signal, select
+import sys, os, glob, threading, select
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 
@@ -68,6 +68,16 @@ def _detach_stdin_from_renderer():
     os.dup2(rfd, 0)
     os.close(rfd)
     _quiet_stdin_w = wfd
+
+def _request_renderer_stop():
+    # Prefer graceful stop through renderer stdin poll; fallback to pthread cancel.
+    if _quiet_stdin_w is not None:
+        try:
+            os.write(_quiet_stdin_w, b'\n')
+            return
+        except OSError:
+            pass
+    glsl.stop()
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
@@ -165,7 +175,7 @@ def keyboard_thread():
                 continue
             ch = b.decode('latin1', errors='ignore')
             if ch == '\x03':  # Ctrl+C
-                glsl.stop()
+                _request_renderer_stop()
                 break
             if ch == '\x1b':
                 seq = _read_escape_sequence(fd)
@@ -209,15 +219,14 @@ ret = glsl.init(bytes(args.shader, 'utf-8'), byref(options(FakeArgs())))
 if ret != 0:
     sys.exit(ret)
 
-stopped = threading.Event()
-threading.Thread(target=lambda: (glsl.join(), stopped.set()), daemon=True).start()
-glsl.run()
-
-signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGCONT])
-from signal import sigwait
-if sigwait({signal.SIGINT, signal.SIGCONT}) == signal.SIGINT:
-    glsl.stop()
-    stopped.wait(timeout=30)
+ret = glsl.run()
+if ret != 0:
+    sys.exit(ret)
+try:
+    glsl.join()
+except KeyboardInterrupt:
+    _request_renderer_stop()
+    glsl.join()
 
 _running = False
 picam.stop()
