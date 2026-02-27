@@ -1,13 +1,18 @@
 # Retina Cannon
 
+![Python](https://img.shields.io/badge/Python-3-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Hardware](https://img.shields.io/badge/Hardware-Raspberry%20Pi-C51A4A?style=for-the-badge&logo=raspberrypi&logoColor=white)
+![OpenGL ES](https://img.shields.io/badge/OpenGL%20ES-2.0-A855F7?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)
+
 > _"What if I took the live camera feed and ran it through a shader that makes everything look like a 1970s vector art fever dream?"_
-> — someone who had clearly watched too many Rutt-Etra videos at 2am and owned a Raspberry Pi.
+> - someone who had clearly watched too many Rutt-Etra videos at 2am and owned a Raspberry Pi.
 
 **Retina Cannon** is a real-time camera-to-shader visual engine for Raspberry Pi.
 
 This is not a camera filter app. Camera filter apps have sliders and a share button. This has a GLSL pipeline, a bare-metal DRM/KMS renderer, and a keyboard thread that intercepts Ctrl+C before the OS even knows it happened.
 
-It grabs live video from the Pi Camera, feeds every frame into a fragment shader running on the GPU, and blasts the result fullscreen — no X server, no compositor, no display manager asking if you're sure. Just OpenGL ES talking directly to the display hardware, the way it was meant to be.
+It grabs live video from the Pi Camera, feeds every frame into a fragment shader running on the GPU, and blasts the result fullscreen: no X server, no compositor, no display manager asking if you're sure. Just OpenGL ES talking directly to the display hardware, the way it was meant to be.
 
 ---
 
@@ -15,15 +20,15 @@ It grabs live video from the Pi Camera, feeds every frame into a fragment shader
 
 Like most Raspberry Pi projects, this one started with a purchasing decision that seemed completely reasonable at the time.
 
-The logic goes like this: *"I already have three Pis, but this one will be different — I'll use it as a dedicated Doom server / home NAS (I already have a NAS) / weather station for a city I don't live in / automatic cat feeder (no cat) / retro gaming console (will play it twice) / AI assistant that listens to everything I say (fine, maybe not that one)."*
+The logic goes like this: *"I already have three Pis, but this one will be different: I'll use it as a dedicated Doom server / home NAS (I already have a NAS) / weather station for a city I don't live in / automatic cat feeder (no cat) / retro gaming console (will play it twice) / AI assistant that listens to everything I say (fine, maybe not that one)."*
 
 Four Pis later, they sit on the desk. They don't say anything. They just look at you. Judgmentally. With their little red power LEDs.
 
 At some point the only reasonable response is to give one of them a camera, a monitor, and a reason to live. Hence: Retina Cannon.
 
-**The actual use case** is beautifully stupid: print a nice 3D-printed enclosure *(files coming soon — yes, we will actually share them, wiiiwwww 🎉)*, walk into a friend's place with a 100-inch TV doing absolutely nothing, plug in AC + HDMI, and suddenly you're the most interesting person at the party. No streaming service. No game console. Just a $40 computer turning your guests into glitchy CRT sculptures in real time.
+**The actual use case** is beautifully stupid: print a nice 3D-printed enclosure *(files coming soon - yes, we will actually share them, wiiiwwww 🎉)*, walk into a friend's place with a 100-inch TV doing absolutely nothing, plug in AC + HDMI, and suddenly you're the most interesting person at the party. No streaming service. No game console. Just a $40 computer turning your guests into glitchy CRT sculptures in real time.
 
-**What's coming:** encoder knob and gesture controls — already prototyped on breadboard, already working, just not integrated yet. This is because the author also needs to eat, sleep, and occasionally interact with other humans. The todos are real. The timeline is optimistic. You know how it goes.
+**What's coming:** encoder knob and gesture controls, already prototyped on breadboard, already working, just not integrated yet. This is because the author also needs to eat, sleep, and occasionally interact with other humans. The todos are real. The timeline is optimistic. You know how it goes.
 
 ---
 
@@ -67,15 +72,15 @@ capture thread  ──(threading.Lock)──▶  latest frame
                                   DRM/KMS output (fullscreen, no windowing system)
 ```
 
-**Capture** — a daemon thread runs continuously and keeps the latest frame behind a lock. The render loop always gets the freshest frame available and never blocks waiting for one.
+**Capture**: a daemon thread runs continuously and keeps the latest frame behind a lock. The render loop always gets the freshest frame available and never blocks waiting for one.
 
-**Render** — `kms-glsl`'s C loop fires a Python callback every frame. That callback uploads the texture and sets all the GLSL uniforms: color mode, wave intensity, character density, effect mode, view mode, camera aspect ratio. Python orchestrates; the GPU executes.
+**Render**: `kms-glsl`'s C loop fires a Python callback every frame. That callback uploads the texture and sets all the GLSL uniforms: color mode, wave intensity, character density, effect mode, view mode, camera aspect ratio. Python orchestrates; the GPU executes.
 
-**Shader** — all visual logic lives in `rutt_etra.frag`. It is a single fragment shader that implements two completely different visual systems and switches between them via a uniform. The CPU has no idea what's happening visually and that's fine.
+**Shader**: all visual logic lives in `rutt_etra.frag`. It is a single fragment shader that implements two completely different visual systems and switches between them via a uniform. The CPU has no idea what's happening visually and that's fine.
 
-**Keyboard** — a separate thread reads from `/dev/tty` with `ICANON`, `ECHO`, and `ISIG` all disabled. This means the kernel's job of turning Ctrl+C into a SIGINT is explicitly circumvented. The signal arrives as raw `\x03` bytes, caught in Python, used to trigger a graceful shutdown. This is not an accident.
+**Keyboard**: a separate thread reads from `/dev/tty` with `ICANON`, `ECHO`, and `ISIG` all disabled. This means the kernel's job of turning Ctrl+C into a SIGINT is explicitly circumvented. The signal arrives as raw `\x03` bytes, caught in Python, used to trigger a graceful shutdown. This is not an accident.
 
-**stdin** — replaced with a silent pipe at startup. Without this, `kms-glsl`'s C code would interpret terminal activity on fd 0 as user input and behave unpredictably. The write end of the pipe doubles as the shutdown signal mechanism. Two problems, one ugly-but-effective solution.
+**stdin**: replaced with a silent pipe at startup. Without this, `kms-glsl`'s C code would interpret terminal activity on fd 0 as user input and behave unpredictably. The write end of the pipe doubles as the shutdown signal mechanism. Two problems, one ugly-but-effective solution.
 
 ---
 
@@ -83,7 +88,7 @@ capture thread  ──(threading.Lock)──▶  latest frame
 
 - Raspberry Pi with camera support enabled
 - `python3`, `libcamera`, `picamera2`
-- [`kms-glsl`](https://github.com/keithzg/kms-glsl) — the C rendering backbone, expected in one of:
+- [`kms-glsl`](https://github.com/keithzg/kms-glsl) - the C rendering backbone, expected in one of:
   - `KMS_GLSL_DIR` environment variable
   - `../kms-glsl` sibling directory ← recommended
   - `~/kms-glsl`
@@ -122,7 +127,7 @@ KMS_GLSL_DIR=/path/to/kms-glsl ./start_cannon.sh
 | Key | Action |
 |---|---|
 | `↑` / `↓` | Cycle color mode |
-| `←` / `→` | Rutt-Etra: wave intensity — ASCII: character density |
+| `←` / `→` | Rutt-Etra: wave intensity / ASCII: character density |
 | `Space` | Switch effect (Rutt-Etra ↔ ASCII Cam) |
 | `V` | Cycle view mode (16:9 → 4:3 → Fisheye) |
 | `F` | Toggle FPS logging to terminal |
@@ -134,9 +139,9 @@ Arrow keys work with both `ESC [` and `ESC O` escape sequences, because terminal
 
 ## Color modes
 
-**Rutt-Etra** — `B/W` · `Colors` · `Prism Warp` · `Acid Melt`
+**Rutt-Etra**: `B/W` · `Colors` · `Prism Warp` · `Acid Melt`
 
-**ASCII Cam** — `Color symbols` · `Monochrome symbols` · `Inverted mono` · `Inverted color`
+**ASCII Cam**: `Color symbols` · `Monochrome symbols` · `Inverted mono` · `Inverted color`
 
 Default startup: Rutt on `Prism Warp`, ASCII on `Color symbols`. Both picked by someone with strong opinions about what looks good at a gallery opening.
 
@@ -166,6 +171,6 @@ bash -n start_cannon.sh
 
 ## License
 
-MIT — [Netmilk Studio sagl](https://netmilk.studio)
+MIT - [Netmilk Studio sagl](https://netmilk.studio)
 
 Do what you want with it. Attribution appreciated. Don't blame us if it runs at an art show and someone asks you to explain what a fragment shader is.
