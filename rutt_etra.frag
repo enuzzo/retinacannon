@@ -4,8 +4,8 @@ uniform float uRuttWave;
 uniform float uAsciiDensity;
 uniform int uEffectMode;
 
-#define LINES 84.0
-#define LINE_WIDTH 0.0030
+#define LINES 72.0
+#define LINE_WIDTH 0.0015
 #define EXTRUSION 0.055
 #define CRT_CURVATURE 0.065
 #define NOISE_STRENGTH 0.020
@@ -90,6 +90,12 @@ vec3 liftShadows(vec3 color) {
     float shadow = 1.0 - smoothstep(0.08, 0.58, luma);
     float gamma = mix(1.0, 0.72, shadow);
     return clamp(pow(color, vec3(gamma)), 0.0, 1.0);
+}
+
+float liftShadowLuma(float luma) {
+    float shadow = 1.0 - smoothstep(0.08, 0.58, luma);
+    float gamma = mix(1.0, 0.72, shadow);
+    return clamp(pow(luma, gamma), 0.0, 1.0);
 }
 
 vec2 warpCRT(vec2 uv) {
@@ -184,18 +190,19 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleUV = vec2(sampleBase.x, normI);
 
     float px = 1.0 / iResolution.x;
-    float luma =
-        getLuma(liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-px * 2.0, 0.0))).rgb)) * 0.1 +
-        getLuma(liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb)) * 0.2 +
-        getLuma(liftShadows(texture(iChannel0, safeUV(sampleUV)).rgb)) * 0.4 +
-        getLuma(liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb)) * 0.2 +
-        getLuma(liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb)) * 0.1;
+    float lumaRaw =
+        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px * 2.0, 0.0))).rgb) * 0.1 +
+        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb) * 0.2 +
+        getLuma(texture(iChannel0, safeUV(sampleUV)).rgb) * 0.4 +
+        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.2 +
+        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb) * 0.1;
+    float luma = liftShadowLuma(lumaRaw);
 
     float lineY = normI + luma * (EXTRUSION * uRuttWave);
     float dist = abs(sampleBase.y - lineY);
 
     float lineAlpha = 1.0 - smoothstep(0.0, LINE_WIDTH, dist);
-    float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 6.0, dist)) * 0.30 * luma;
+    float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.24 * luma;
 
     vec3 camColor = liftShadows(texture(iChannel0, safeUV(sampleUV)).rgb);
     vec3 lineCol;
@@ -299,6 +306,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         return;
     }
 
-    vec3 color = (uEffectMode == 0) ? renderRutt(uv, fragCoord) : renderAscii(uv, fragCoord);
+    vec3 color;
+    if (uEffectMode == 0) {
+        color = renderRutt(uv, fragCoord);
+    } else {
+        color = renderAscii(uv, fragCoord);
+    }
     fragColor = vec4(color, 1.0);
 }
