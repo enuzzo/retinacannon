@@ -80,6 +80,24 @@ _fps_smoothed = 0.0
 _fps_last_report_time = None
 _ctrl_c_requested = False
 
+ANSI_RESET = '\033[0m'
+ANSI_BOLD = '\033[1m'
+ANSI_DIM = '\033[2m'
+ANSI_CYAN = '\033[36m'
+ANSI_MAGENTA = '\033[35m'
+ANSI_GREEN = '\033[32m'
+ANSI_YELLOW = '\033[33m'
+ANSI_RED = '\033[31m'
+
+def _styled(text, color='', bold=False, dim=False):
+    style = ''
+    if bold:
+        style += ANSI_BOLD
+    if dim:
+        style += ANSI_DIM
+    style += color
+    return f'{style}{text}{ANSI_RESET}' if style else text
+
 def _detach_stdin_from_renderer():
     # kms-glsl treats any readable stdin as "user interrupted".
     # Keep fd 0 on an idle pipe and read controls from /dev/tty instead.
@@ -126,25 +144,34 @@ def _toggle_fps_logging():
     current_show_fps = 0 if current_show_fps else 1
     _fps_last_report_time = None
     if current_show_fps:
-        print('\r[FPS] LOG ON (terminal only)        ')
+        print(f'\r{_styled("[FPS]", ANSI_CYAN, bold=True)} LOG ON (terminal only)        ')
     else:
-        print('\r[FPS] LOG OFF        ')
+        print(f'\r{_styled("[FPS]", ANSI_CYAN, bold=True)} LOG OFF        ')
 
 def _print_startup_banner():
-    print('\n=== Retina Cannon Boot ===')
-    print(f'[Startup] Camera: {CAM_W}x{CAM_H} | View: {VIEW_MODE_NAMES[current_view_mode]}')
-    print(f'[Startup] Rutt default: {RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]} | ASCII default: {ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]}')
-    print('[Controls] Arrow Up/Down: cycle color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | V: view | F: fps log | Ctrl+C: quit')
+    print()
+    print(_styled('============================================', ANSI_MAGENTA, bold=True))
+    print(_styled('        RETINA CANNON // BOOT SEQUENCE      ', ANSI_MAGENTA, bold=True))
+    print(_styled('============================================', ANSI_MAGENTA, bold=True))
+    print(f'{_styled("[Startup]", ANSI_GREEN, bold=True)} Camera: {CAM_W}x{CAM_H} | View: {VIEW_MODE_NAMES[current_view_mode]}')
+    print(f'{_styled("[Startup]", ANSI_GREEN, bold=True)} Rutt default: {RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]} | ASCII default: {ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]}')
+    print(f'{_styled("[Controls]", ANSI_CYAN, bold=True)} Arrow Up/Down: cycle color mode | Arrow Left/Right: Rutt wave / ASCII density | Space: effect mode | V: view | F: fps log | Ctrl+C: quit')
+    print(_styled('============================================', ANSI_MAGENTA, bold=True))
 
 def _print_shutdown_banner(reason):
-    print('\n[Shutdown] Renderer stop requested.')
-    print('[Shutdown] Camera stream offline.')
+    print()
+    print(_styled('============================================', ANSI_YELLOW, bold=True))
+    print(_styled('        RETINA CANNON // SHUTDOWN           ', ANSI_YELLOW, bold=True))
+    print(_styled('============================================', ANSI_YELLOW, bold=True))
+    print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Renderer stop requested.')
+    print(f'{_styled("[Shutdown]", ANSI_YELLOW, bold=True)} Camera stream offline.')
     if reason == 'ctrl_c':
-        print('[Goodbye] Bersaglio perso, ma il cannone torna presto. Arrivederci!')
+        print(f'{_styled("[Goodbye]", ANSI_CYAN, bold=True)} Target lost, cannon reloading. See you on the next run.')
     elif reason.startswith('init_error') or reason.startswith('run_error'):
-        print(f'[Goodbye] Uscita con errore ({reason}).')
+        print(f'{_styled("[Goodbye]", ANSI_RED, bold=True)} Exit with error ({reason}).')
     else:
-        print('[Goodbye] Sessione chiusa. Ci vediamo al prossimo test visivo.')
+        print(f'{_styled("[Goodbye]", ANSI_GREEN, bold=True)} Session closed. See you on the next visual test.')
+    print(_styled('============================================', ANSI_YELLOW, bold=True))
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
