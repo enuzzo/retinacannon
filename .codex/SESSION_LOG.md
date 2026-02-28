@@ -151,3 +151,11 @@
 - Fix: retried blocked commands with approved elevated execution where needed.
 - Concrete verification: `git push` succeeded to `origin/main`; subsequent `git pull` fast-forwarded local `main` to `1f14375`; current status is clean (`## main...origin/main`).
 - Prevention: for doc-copy iterations, update README first, then push immediately and run pull after any remote-side edits.
+
+### [2026-02-28 21:19] Splash redesign stabilization + Pixel palette cleanup
+- Goal: finalize VHS/warez splash UX and remove the unwanted blue-skin Pixel preset while keeping runtime controls practical.
+- Actions taken: added local figlet font support (`fonts/Slant Relief.flf`) and updated splash to use centered title render with `figlet -w 1000`; added lolcat integration with `/usr/games/lolcat` fallback; introduced `--splash` argument (default 10, `-1` hold-until-key); added 20 startup + 20 shutdown random lines; tuned splash layout spacing and quote rendering; replaced Pixel palettes (removed legacy phosphor/amber and then removed CGA on request), keeping Full Color + Game Boy + CMYK Melt + Toxic Candy with per-mode default block sizes; simplified countdown to a progressive grayscale 10→0 line.
+- Errors encountered: figlet title was being internally wrapped at default width and appearing split; splash redraw loop caused visible flashing; lolcat path was not always resolved through PATH.
+- Fix: forced figlet width to 1000, switched countdown rendering to stable line updates, and added explicit `/usr/games/lolcat` fallback.
+- Concrete verification: `python3 -m py_compile retina_cannon.py` passes after each splash/countdown iteration; `grep` checks confirmed removal of `CGA` references from README + shader + Python mode names.
+- Prevention: keep splash rendering single-frame stable where possible, force figlet width explicitly, and test terminal utility paths (`command -v` plus known distro fallback locations) before assuming monochrome fallback behavior.

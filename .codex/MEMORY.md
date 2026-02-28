@@ -21,9 +21,12 @@
 - Active shader: `rutt_etra.frag` — five effects via `uEffectMode` uniform:
   - 0: Rutt-Etra CRT (scan-line displacement, CRT curvature, vignette)
   - 1: ASCII Cam (bitmap font glyphs, 4 color modes)
-  - 2: Pixel Art (block grid, 5 palette modes: Full Color/Game Boy/CGA/Phosphor/Amber)
+  - 2: Pixel Art (block grid, 4 palette modes: Full Color/Game Boy/CMYK Melt/Toxic Candy)
   - 3: Signal Ghost (generative typography, motion/presence reactive, 6 color modes)
   - 4: Raster Vision (dedicated raster/halftone pipeline, 5 modes including thermal/comic/pastel/pop)
+- Boot/exit splash: VHS-style centered ASCII title with local figlet font `fonts/Slant Relief.flf`, optional `lolcat` colorization, random startup/shutdown lines, and configurable countdown via `--splash` (`-1` = hold until keypress).
+- Figlet wrap guard: always render title with `figlet -w 1000` to avoid internal 80-column word splitting.
+- lolcat path fallback: use `/usr/games/lolcat` if not present in regular `PATH`.
 - Startup defaults: `view=16:9`, `mirror=ON`, `effect=Rutt-Etra CRT`, `pixel mode=Game Boy`, `raster mode=Thermal Raster`.
 - Screenshot feature (`S`): 3-second countdown then frame dump to `shots/` with filename suffixes for effect/variant/view/mirror.
 - Camera format: BGR888 at 1640x1232; uploaded as GL_RGB; shader uses `.bgr` swizzle.
