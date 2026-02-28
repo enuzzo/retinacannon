@@ -143,3 +143,11 @@
 - Fix: n/a.
 - Concrete verification: reviewed resulting docs via `sed`; values now match code constants in `retina_cannon.py` (`EFFECT_MODE_NAMES`, `RASTER_COLOR_MODE_NAMES`, `current_mirror_view = 1`, screenshot save path `RETINA_DIR / 'shots'`).
 - Prevention: when controls/effects change, update `README.md`, `MEMORY.md`, and append `SESSION_LOG.md` in the same session before commit.
+
+### [2026-02-28 19:27] README TL;DR iteration + remote sync
+- Goal: add a punchy TL;DR section in README, then align local with upstream edits.
+- Actions taken: inserted TL;DR between `Why this exists` and `Effects`; adjusted copy to English; replaced TL;DR with user-provided final text; pushed commits (`f056b84`, `46a42c9`); pulled latest upstream changes to local (`1f14375`).
+- Errors encountered: transient sandbox restrictions on some git read commands.
+- Fix: retried blocked commands with approved elevated execution where needed.
+- Concrete verification: `git push` succeeded to `origin/main`; subsequent `git pull` fast-forwarded local `main` to `1f14375`; current status is clean (`## main...origin/main`).
+- Prevention: for doc-copy iterations, update README first, then push immediately and run pull after any remote-side edits.
