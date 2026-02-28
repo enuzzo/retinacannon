@@ -758,6 +758,93 @@ vec3 renderSignalGhost(vec2 uv, vec2 fragCoord) {
     return clamp(col, 0.0, 1.0);
 }
 
+vec4 hash44(vec4 p4) {
+    p4 = fract(p4 * 0.3183099 + vec4(0.71, 0.113, 0.419, 0.279));
+    vec4 q = p4 * (p4.wzxy + 19.19);
+    p4 += fract(q.xwzy * q.zywx + q.yzzw);
+    p4 = abs(fract(p4 * 1.61803) * 2.0 - 1.0);
+    p4 += dot(p4, vec4(0.754877, 0.569840, 0.437016, 0.982451));
+    p4 = fract(p4 * 0.618034 + p4.wxyz * 0.414214);
+    p4 = fract(p4.xwzy * (p4.zywx + 0.61803) + p4.yzzw);
+    return fract(123.45 * p4);
+}
+
+// ── Datamosh Trails ─────────────────────────────────────────────────────────
+// uAsciiDensity: amount (0.5..6.0)
+vec3 renderDatamoshTrails(vec2 uv, vec2 fragCoord) {
+    vec2 cuv = safeUV(cameraMirrorUV(uv));
+    vec3 base = texture(iChannel0, cuv).rgb;
+    float amount = clamp(uAsciiDensity, 0.5, 6.0);
+
+    vec2 px = vec2(1.0) / iResolution.xy;
+    vec3 n = texture(iChannel0, safeUV(cuv + vec2(0.0, px.y))).rgb;
+    vec3 e = texture(iChannel0, safeUV(cuv + vec2(px.x, 0.0))).rgb;
+    float gy = getLuma(n) - getLuma(base);
+    float gx = getLuma(e) - getLuma(base);
+
+    vec2 drift = vec2(gy, -gx) * (0.020 * amount);
+    drift.x += (hash12(vec2(floor(fragCoord.y * 0.25), floor(iTime * 20.0))) - 0.5) * 0.015 * amount;
+
+    vec3 ghostA = texture(iChannel0, safeUV(cuv - drift)).rgb;
+    vec3 ghostB = texture(iChannel0, safeUV(cuv - drift * 2.0)).rgb;
+    vec3 col = mix(base, ghostA, 0.58);
+    col = mix(col, ghostB, 0.28);
+
+    // Keep startup palette neutral; aggressive channel split can be re-added as a variant.
+    col = mix(col, base, 0.22);
+
+    return clamp(col, 0.0, 1.0);
+}
+
+// ── VHS Tracking Burn ───────────────────────────────────────────────────────
+// uAsciiDensity: tracking intensity (0.5..5.0)
+vec3 renderVhsTrackingBurn(vec2 uv, vec2 fragCoord) {
+    vec2 cuv = safeUV(cameraMirrorUV(uv));
+    float tracking = clamp(uAsciiDensity, 0.5, 5.0);
+
+    float line = floor(fragCoord.y * 0.5);
+    float roll = (hash12(vec2(line, floor(iTime * 24.0))) - 0.5) * 0.010 * tracking;
+    float warp = sin(cuv.y * 240.0 + iTime * 28.0) * 0.0022 * tracking;
+    cuv.x = clamp(cuv.x + roll + warp, 0.001, 0.999);
+
+    vec3 col = texture(iChannel0, cuv).rgb;
+
+    float scan = 0.90 + 0.10 * sin(fragCoord.y * 2.4);
+    col *= scan;
+
+    float dropout = step(0.992, hash12(vec2(floor(fragCoord.y * 0.1), floor(iTime * 14.0))));
+    col = mix(col, col * vec3(0.22, 0.28, 0.35), dropout * 0.85);
+
+    float noise = (hash12(fragCoord + iTime * 140.0) - 0.5) * 0.05;
+    col += noise;
+    col *= vec3(1.02, 1.00, 0.98);
+
+    return clamp(col, 0.0, 1.0);
+}
+
+// ── Posterize Glitch Comic ──────────────────────────────────────────────────
+// uAsciiDensity: quantization levels (2..12)
+vec3 renderPosterizeGlitchComic(vec2 uv, vec2 fragCoord) {
+    vec2 cuv = safeUV(cameraMirrorUV(uv));
+    float levels = floor(clamp(uAsciiDensity, 2.0, 12.0));
+
+    vec3 base = texture(iChannel0, cuv).rgb;
+    vec3 poster = floor(base * levels) / max(levels - 1.0, 1.0);
+
+    vec2 px = vec2(1.0) / iResolution.xy;
+    float lR = getLuma(texture(iChannel0, safeUV(cuv + vec2(px.x, 0.0))).rgb);
+    float lL = getLuma(texture(iChannel0, safeUV(cuv - vec2(px.x, 0.0))).rgb);
+    float lU = getLuma(texture(iChannel0, safeUV(cuv + vec2(0.0, px.y))).rgb);
+    float lD = getLuma(texture(iChannel0, safeUV(cuv - vec2(0.0, px.y))).rgb);
+    float edge = clamp(length(vec2(lR - lL, lU - lD)) * 3.5, 0.0, 1.0);
+    float ink = smoothstep(0.12, 0.32, edge);
+
+    vec3 col = poster;
+    col = mix(col, vec3(0.02), ink * 0.70);
+
+    return clamp(col, 0.0, 1.0);
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     if (uViewMode == 0) {
@@ -782,8 +869,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         color = renderPixelArt(uv, fragCoord);
     } else if (uEffectMode == 3) {
         color = renderSignalGhost(uv, fragCoord);
-    } else {
+    } else if (uEffectMode == 4) {
         color = renderRasterVision(uv, fragCoord);
+    } else if (uEffectMode == 5) {
+        color = renderDatamoshTrails(uv, fragCoord);
+    } else if (uEffectMode == 6) {
+        color = renderVhsTrackingBurn(uv, fragCoord);
+    } else {
+        color = renderPosterizeGlitchComic(uv, fragCoord);
     }
     fragColor = vec4(color, 1.0);
 }

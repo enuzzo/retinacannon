@@ -48,7 +48,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ## Effects
 
-Five effects, all in a single shader, switchable live with `Space`:
+Eight effects, all in a single shader, switchable live with `Space`:
 
 ### Rutt-Etra CRT
 
@@ -110,6 +110,24 @@ At rest: small letters, slow breathing. When you move: letters burst with per-ce
 | Neon | Per-cell hue that shifts on motion |
 | Thermal | FLIR jet coloring per local luminance |
 | Chromatic | RGB channels split by motion intensity |
+
+### Datamosh Trails
+
+Aggressive live smear/glitch pass: motion-like edge drift, ghosted copies, and channel split.
+
+**Color modes:** `Trails`
+
+### VHS Tracking Burn
+
+Analog tape chaos: horizontal tracking drift, chroma bleed, scanline flicker, and random dropouts.
+
+**Color modes:** `Tracking Burn`
+
+### Posterize Glitch Comic
+
+Hard quantization + edge ink + mild RGB split, for instant printed-comic meltdown vibes.
+
+**Color modes:** `Comic Glitch`
 
 ---
 
@@ -192,10 +210,10 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 
 | Key | Action |
 |---|---|
-| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost → Raster Vision |
+| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost → Raster Vision → Datamosh Trails → VHS Tracking Burn → Posterize Glitch Comic |
 | `S` | 3-second countdown then save rendered screenshot to `shots/` |
 | `↑` / `↓` | Cycle color mode (per-effect, independent) |
-| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density · Raster: dot size |
+| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density · Raster: dot size · Datamosh: amount · VHS: tracking · Poster: levels |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |
 | `M` | Toggle horizontal mirror of current view |
 | `F` | Toggle FPS logging to terminal |

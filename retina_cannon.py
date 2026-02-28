@@ -124,9 +124,24 @@ current_ghost_color_mode = 0
 current_ghost_density = 2.0
 current_raster_color_mode = 0
 current_raster_size = 12.0
+current_datamosh_color_mode = 0
+current_vhsburn_color_mode = 0
+current_poster_color_mode = 0
+current_datamosh_amount = 2.0
+current_vhs_tracking = 1.5
+current_poster_levels = 5.0
 GHOST_DENSITY_STEP = 0.25
 GHOST_DENSITY_MIN = 0.5
 GHOST_DENSITY_MAX = 5.0
+DATAMOSH_AMOUNT_STEP = 0.25
+DATAMOSH_AMOUNT_MIN = 0.5
+DATAMOSH_AMOUNT_MAX = 6.0
+VHS_TRACK_STEP = 0.20
+VHS_TRACK_MIN = 0.5
+VHS_TRACK_MAX = 5.0
+POSTER_LEVEL_STEP = 1.0
+POSTER_LEVEL_MIN = 2.0
+POSTER_LEVEL_MAX = 12.0
 current_effect_mode = 0
 current_view_mode = 0
 current_mirror_view = 1
@@ -152,7 +167,19 @@ PIXELART_COLOR_MODE_NAMES = [
 PIXELART_MODE_DEFAULT_SIZES = [12.0, 16.0, 22.0, 8.0]
 GHOST_COLOR_MODE_NAMES = ['Void', 'Matrix', 'Ghost Cam', 'Neon', 'Thermal', 'Chromatic']
 RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic B/W', 'Comic Pastel', 'Vibrant Pop']
-EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art', 'Signal Ghost', 'Raster Vision']
+DATAMOSH_COLOR_MODE_NAMES = ['Trails']
+VHSBURN_COLOR_MODE_NAMES = ['Tracking Burn']
+POSTER_COLOR_MODE_NAMES = ['Comic Glitch']
+EFFECT_MODE_NAMES = [
+    'Rutt-Etra CRT',
+    'ASCII Cam',
+    'Pixel Art',
+    'Signal Ghost',
+    'Raster Vision',
+    'Datamosh Trails',
+    'VHS Tracking Burn',
+    'Posterize Glitch Comic',
+]
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
 _quiet_stdin_w = None
@@ -173,7 +200,7 @@ _render_h = 0
 _shot_deadline = None
 _shot_last_seconds = None
 SHOT_COUNTDOWN_SEC = 3.0
-_splash_seconds = 10
+_splash_seconds = 5
 
 _BOOT_LINES = [
     'Tracking lock acquired. Keep your face in frame and pretend this was planned.',
@@ -542,18 +569,25 @@ def _color_mode_name():
     if current_effect_mode == 1:   return ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
     if current_effect_mode == 2:   return PIXELART_COLOR_MODE_NAMES[current_pixelart_color_mode]
     if current_effect_mode == 3:   return GHOST_COLOR_MODE_NAMES[current_ghost_color_mode]
-    return RASTER_COLOR_MODE_NAMES[current_raster_color_mode]
+    if current_effect_mode == 4:   return RASTER_COLOR_MODE_NAMES[current_raster_color_mode]
+    if current_effect_mode == 5:   return DATAMOSH_COLOR_MODE_NAMES[current_datamosh_color_mode]
+    if current_effect_mode == 6:   return VHSBURN_COLOR_MODE_NAMES[current_vhsburn_color_mode]
+    return POSTER_COLOR_MODE_NAMES[current_poster_color_mode]
 
 def _active_color_mode():
     if current_effect_mode == 0:   return current_rutt_color_mode
     if current_effect_mode == 1:   return current_ascii_color_mode
     if current_effect_mode == 2:   return current_pixelart_color_mode
     if current_effect_mode == 3:   return current_ghost_color_mode
-    return current_raster_color_mode
+    if current_effect_mode == 4:   return current_raster_color_mode
+    if current_effect_mode == 5:   return current_datamosh_color_mode
+    if current_effect_mode == 6:   return current_vhsburn_color_mode
+    return current_poster_color_mode
 
 def _set_active_color_mode(mode):
     global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_size
     global current_pixelart_color_mode, current_ghost_color_mode, current_raster_color_mode
+    global current_datamosh_color_mode, current_vhsburn_color_mode, current_poster_color_mode
     if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
     elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
     elif current_effect_mode == 2:
@@ -561,7 +595,10 @@ def _set_active_color_mode(mode):
         # Give each pixel preset a useful default block size while keeping live tweak on arrows.
         current_pixelart_size = PIXELART_MODE_DEFAULT_SIZES[current_pixelart_color_mode]
     elif current_effect_mode == 3: current_ghost_color_mode        = mode % len(GHOST_COLOR_MODE_NAMES)
-    else:                          current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
+    elif current_effect_mode == 4: current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
+    elif current_effect_mode == 5: current_datamosh_color_mode     = mode % len(DATAMOSH_COLOR_MODE_NAMES)
+    elif current_effect_mode == 6: current_vhsburn_color_mode      = mode % len(VHSBURN_COLOR_MODE_NAMES)
+    else:                          current_poster_color_mode       = mode % len(POSTER_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
@@ -572,7 +609,10 @@ def _effect_param_label():
     if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x'
     if current_effect_mode == 2:   return f'[PIXEL] Block {int(current_pixelart_size)}px'
     if current_effect_mode == 3:   return f'[GHOST] Density {current_ghost_density:.2f}x'
-    return f'[RASTER] Dot {int(current_raster_size)}px'
+    if current_effect_mode == 4:   return f'[RASTER] Dot {int(current_raster_size)}px'
+    if current_effect_mode == 5:   return f'[DATAMOSH] Amount {current_datamosh_amount:.2f}x'
+    if current_effect_mode == 6:   return f'[VHS] Tracking {current_vhs_tracking:.2f}x'
+    return f'[POSTER] Levels {int(current_poster_levels)}'
 
 def _slugify(text):
     s = ''.join(ch.lower() if ch.isalnum() else '-' for ch in text)
@@ -805,7 +845,16 @@ def on_render(frame, time):
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
-        _d = current_ghost_density if current_effect_mode == 3 else current_ascii_density
+        if current_effect_mode == 3:
+            _d = current_ghost_density
+        elif current_effect_mode == 5:
+            _d = current_datamosh_amount
+        elif current_effect_mode == 6:
+            _d = current_vhs_tracking
+        elif current_effect_mode == 7:
+            _d = current_poster_levels
+        else:
+            _d = current_ascii_density
         glsl.glUniform1f(loc_ascii_density, c_float(_d))
     if loc_effect_mode >= 0:
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
@@ -893,6 +942,7 @@ def _decode_arrow(seq):
 def keyboard_thread():
     global current_rutt_wave, current_ascii_density, current_pixelart_size
     global current_ghost_density, current_raster_size
+    global current_datamosh_amount, current_vhs_tracking, current_poster_levels
     global current_effect_mode, current_view_mode, current_mirror_view, _ctrl_c_requested
     global _shot_deadline, _shot_last_seconds
     import termios
@@ -955,8 +1005,14 @@ def keyboard_thread():
                         current_pixelart_size = min(PIXELART_SIZE_MAX, current_pixelart_size + PIXELART_SIZE_STEP)
                     elif current_effect_mode == 3:
                         current_ghost_density = min(GHOST_DENSITY_MAX, current_ghost_density + GHOST_DENSITY_STEP)
-                    else:
+                    elif current_effect_mode == 4:
                         current_raster_size = min(PIXELART_SIZE_MAX, current_raster_size + PIXELART_SIZE_STEP)
+                    elif current_effect_mode == 5:
+                        current_datamosh_amount = min(DATAMOSH_AMOUNT_MAX, current_datamosh_amount + DATAMOSH_AMOUNT_STEP)
+                    elif current_effect_mode == 6:
+                        current_vhs_tracking = min(VHS_TRACK_MAX, current_vhs_tracking + VHS_TRACK_STEP)
+                    else:
+                        current_poster_levels = min(POSTER_LEVEL_MAX, current_poster_levels + POSTER_LEVEL_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
                     if current_effect_mode == 0:
@@ -967,8 +1023,14 @@ def keyboard_thread():
                         current_pixelart_size = max(PIXELART_SIZE_MIN, current_pixelart_size - PIXELART_SIZE_STEP)
                     elif current_effect_mode == 3:
                         current_ghost_density = max(GHOST_DENSITY_MIN, current_ghost_density - GHOST_DENSITY_STEP)
-                    else:
+                    elif current_effect_mode == 4:
                         current_raster_size = max(PIXELART_SIZE_MIN, current_raster_size - PIXELART_SIZE_STEP)
+                    elif current_effect_mode == 5:
+                        current_datamosh_amount = max(DATAMOSH_AMOUNT_MIN, current_datamosh_amount - DATAMOSH_AMOUNT_STEP)
+                    elif current_effect_mode == 6:
+                        current_vhs_tracking = max(VHS_TRACK_MIN, current_vhs_tracking - VHS_TRACK_STEP)
+                    else:
+                        current_poster_levels = max(POSTER_LEVEL_MIN, current_poster_levels - POSTER_LEVEL_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):
                     # Fallback for terminals that emit ESC...F for this key.
@@ -997,7 +1059,7 @@ parser.add_argument('shader', nargs='?', default=str(RETINA_DIR / 'rutt_etra.fra
 parser.add_argument(
     '--splash',
     type=int,
-    default=10,
+    default=5,
     help='Splash countdown in seconds before render starts (-1 = hold until keypress).',
 )
 args = parser.parse_args()

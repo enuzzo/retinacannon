@@ -18,18 +18,22 @@
 - Main run command: `/home/enuzzo/retinacannon/start_cannon.sh`.
 - Stable runtime baseline: ~20 FPS on RPi4 with the canonical launcher.
 - Runtime stack: `retina_cannon.py` + `rutt_etra.frag` (GLSL) + kms-glsl ctypes bridge.
-- Active shader: `rutt_etra.frag` — five effects via `uEffectMode` uniform:
+- Active shader: `rutt_etra.frag` — eight effects via `uEffectMode` uniform:
   - 0: Rutt-Etra CRT (scan-line displacement, CRT curvature, vignette)
   - 1: ASCII Cam (bitmap font glyphs, 4 color modes)
   - 2: Pixel Art (block grid, 4 palette modes: Full Color/Game Boy/CMYK Melt/Toxic Candy)
   - 3: Signal Ghost (generative typography, motion/presence reactive, 6 color modes)
   - 4: Raster Vision (dedicated raster/halftone pipeline, 5 modes including thermal/comic/pastel/pop)
+  - 5: Datamosh Trails
+  - 6: VHS Tracking Burn
+  - 7: Posterize Glitch Comic
 - Boot/exit splash: VHS-style centered ASCII title with local figlet font `fonts/Slant Relief.flf`, optional `lolcat` colorization, random startup/shutdown lines, and configurable countdown via `--splash` (`-1` = hold until keypress).
 - Figlet wrap guard: always render title with `figlet -w 1000` to avoid internal 80-column word splitting.
 - lolcat path fallback: use `/usr/games/lolcat` if not present in regular `PATH`.
 - Startup defaults: `view=16:9`, `mirror=ON`, `effect=Rutt-Etra CRT`, `pixel mode=Game Boy`, `raster mode=Thermal Raster`.
 - Screenshot feature (`S`): 3-second countdown then frame dump to `shots/` with filename suffixes for effect/variant/view/mirror.
-- Camera format: BGR888 at 1640x1232; uploaded as GL_RGB; shader uses `.bgr` swizzle.
+- Camera format: BGR888 at 1640x1232; uploaded as GL_RGB.
+- Color baseline rule: when creating new effects, sample camera with `.rgb` first and compare skin tone against Rutt default. Use `.bgr` only intentionally per-effect; blind `.bgr` in new effects caused blue-skin regressions.
 - Motion detection: CPU-side in capture thread at 1/8 resolution; dead-zone 0.03, multiplier 30.0, asymmetric smoothing (attack 0.65, decay 0.92). Exposes `uMotionLevel`, `uPresenceScale`, `uPresenceCX/CY`.
 - Keyboard thread: uses `select()` with 0.5s timeout (not blocking `os.read()`) because DRM takes TTY into graphics mode.
 - ISIG disabled on TTY: Ctrl+C arrives as `\x03` byte; SIGTERM/SIGHUP routed to same graceful shutdown.
@@ -50,6 +54,7 @@
 - DRM/KMS exclusive mode: never SIGKILL the process; display lock survives soft reboot. (verified by hard power cycle incident)
 - Screenshot capture in callback timing: force a one-off draw before `glReadPixels` or dumps can be black.
 - When adding new effect modes: update `EFFECT_MODE_NAMES`, `_active_color_mode()`, `_set_active_color_mode()`, `_effect_param_label()`, `on_init`, `on_render`, keyboard handler, and `mainImage()` in shader.
+- Blue-skin regression trap: channel-order mismatches (`rgb` vs `bgr`) can affect only some effects while Rutt looks correct. Troubleshoot by comparing the problematic effect against Rutt in the same session and standardize sampling in the new effect path.
 
 ## Pre-flight checklist
 - [ ] Read `MEMORY.md`.

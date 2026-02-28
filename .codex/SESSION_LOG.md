@@ -159,3 +159,11 @@
 - Fix: forced figlet width to 1000, switched countdown rendering to stable line updates, and added explicit `/usr/games/lolcat` fallback.
 - Concrete verification: `python3 -m py_compile retina_cannon.py` passes after each splash/countdown iteration; `grep` checks confirmed removal of `CGA` references from README + shader + Python mode names.
 - Prevention: keep splash rendering single-frame stable where possible, force figlet width explicitly, and test terminal utility paths (`command -v` plus known distro fallback locations) before assuming monochrome fallback behavior.
+
+### [2026-02-28 23:19] Targeted color-order troubleshooting on new effects
+- Goal: remove persistent blue-skin tint from newly added effects while preserving the known-correct baseline rendering.
+- Actions taken: compared sampling strategy in `renderRutt()` (predominantly `.rgb`) versus the 3 new effects; identified mixed `.bgr` usage in new paths; switched new effect sampling to `.rgb` and removed aggressive default channel-split from those paths.
+- Errors encountered: visual mismatch was not global (Rutt looked correct), making the issue appear effect-specific and inconsistent.
+- Fix: standardized channel sampling for new effects to `.rgb` and documented explicit RGB/BGR rules in `MEMORY.md`.
+- Concrete verification: user confirmed normal skin tones after the RGB alignment fix; Python syntax check remained clean (`python3 -m py_compile retina_cannon.py`).
+- Prevention: for any new effect, first validate “neutral camera pass” against Rutt default before adding stylized channel operations; treat `.bgr` as opt-in, not default.
