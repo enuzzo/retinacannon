@@ -7,10 +7,10 @@
 ![OpenGL ES](https://img.shields.io/badge/OpenGL%20ES-2.0-A855F7?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)
 
-> _"What if I took the live camera feed and ran it through a shader that makes everything look like a 1970s vector art fever dream?"_
-> - someone who had clearly watched too many Rutt-Etra videos at 2am and owned a Raspberry Pi.
+> "What if I took the live camera feed and ran it through a shader that makes everything look like a 1970s vector art fever dream?"
+> _Someone who had clearly watched too many Rutt-Etra videos at 2am and owned a bunch of unused Raspberry Pis_
 
-**Retina Cannon** is a real-time camera-to-shader visual engine for Raspberry Pi.
+**Retina Cannon** is a real-time camera-to-shader visual engine for Raspberry Pi. Because, why not? WHY NOT?!?1! 🙃
 
 This is not a camera filter app. Camera filter apps have sliders and a share button. This has a GLSL pipeline, a bare-metal DRM/KMS renderer, and a keyboard thread that intercepts Ctrl+C before the OS even knows it happened.
 
