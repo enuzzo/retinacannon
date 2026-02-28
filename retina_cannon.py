@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, select, termios, signal, subprocess, random
+import sys, os, glob, threading, select, termios, signal, subprocess, random, math
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
+from datetime import datetime
 
 RETINA_DIR = Path(__file__).resolve().parent
 
@@ -35,6 +36,10 @@ import libcamera
 import numpy as np
 import ctypes
 import time
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 
 WIDTH, HEIGHT = 1640, 1232
 picam = Picamera2()
@@ -163,6 +168,11 @@ _motion_level = 0.0
 _presence_scale = 0.0
 _presence_cx = 0.5
 _presence_cy = 0.5
+_render_w = 0
+_render_h = 0
+_shot_deadline = None
+_shot_last_seconds = None
+SHOT_COUNTDOWN_SEC = 3.0
 
 _BOOT_QUOTES = [
     '"The map is not the territory."  — Korzybski',
@@ -311,6 +321,80 @@ def _effect_param_label():
     if current_effect_mode == 3:   return f'[GHOST] Density {current_ghost_density:.2f}x'
     return f'[RASTER] Dot {int(current_raster_size)}px'
 
+def _slugify(text):
+    s = ''.join(ch.lower() if ch.isalnum() else '-' for ch in text)
+    while '--' in s:
+        s = s.replace('--', '-')
+    s = s.strip('-')
+    return s or 'mode'
+
+def _save_screenshot_now():
+    if _render_w <= 0 or _render_h <= 0:
+        print('\r[SHOT] Failed: render size unavailable        ')
+        return
+
+    out_dir = RETINA_DIR / 'shots'
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    effect = _slugify(EFFECT_MODE_NAMES[current_effect_mode])
+    variant = _slugify(_color_mode_name())
+    view = _slugify(VIEW_MODE_NAMES[current_view_mode])
+    mirror = 'mirror-on' if current_mirror_view else 'mirror-off'
+    png_path = out_dir / f'{stamp}_{effect}_{variant}_{view}_{mirror}.png'
+
+    # onRender is invoked before the engine draw. Force a one-off draw here
+    # so glReadPixels captures a real rendered frame, not an empty backbuffer.
+    try:
+        glsl.glDrawArrays(GL_TRIANGLES, 0, 6)
+    except Exception:
+        pass
+    try:
+        glsl.glFinish()
+    except Exception:
+        pass
+    try:
+        glsl.glPixelStorei(GL_PACK_ALIGNMENT, 1)
+    except Exception:
+        pass
+
+    pixels = (ctypes.c_ubyte * (_render_w * _render_h * 4))()
+    glsl.glReadPixels(0, 0, _render_w, _render_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels)
+    if glsl.glGetError() != GL_NO_ERROR:
+        print('\r[SHOT] Failed: glReadPixels error        ')
+        return
+
+    rgba = np.ctypeslib.as_array(pixels).reshape((_render_h, _render_w, 4))
+    frame = np.flipud(rgba[:, :, :3]).copy()
+
+    if Image is not None:
+        Image.fromarray(frame, 'RGB').save(str(png_path), format='PNG')
+        print(f'\r[SHOT] Saved {png_path}        ')
+        return
+
+    ppm_path = png_path.with_suffix('.ppm')
+    with open(ppm_path, 'wb') as f:
+        f.write(f'P6\n{_render_w} {_render_h}\n255\n'.encode('ascii'))
+        f.write(frame.tobytes())
+    print(f'\r[SHOT] Saved {ppm_path} (Pillow missing)        ')
+
+def _tick_screenshot_countdown():
+    global _shot_deadline, _shot_last_seconds
+    if _shot_deadline is None:
+        return
+
+    rem = _shot_deadline - time.monotonic()
+    if rem <= 0.0:
+        _shot_deadline = None
+        _shot_last_seconds = None
+        _save_screenshot_now()
+        return
+
+    secs = int(math.ceil(rem))
+    if _shot_last_seconds != secs:
+        _shot_last_seconds = secs
+        print(f'\r[SHOT] {secs}...        ')
+
 def _toggle_fps_logging():
     global current_show_fps, _fps_last_report_time
     current_show_fps = 0 if current_show_fps else 1
@@ -364,6 +448,7 @@ def _print_startup_banner():
     print(f'  {_styled("↑↓", ANSI_CYAN, bold=True)} color  '
           f'{_styled("←→", ANSI_CYAN, bold=True)} wave/density  '
           f'{_styled("Space", ANSI_CYAN, bold=True)} effect  '
+          f'{_styled("S", ANSI_CYAN, bold=True)} screenshot  '
           f'{_styled("V", ANSI_CYAN, bold=True)} view  '
           f'{_styled("M", ANSI_CYAN, bold=True)} mirror  '
           f'{_styled("F", ANSI_CYAN, bold=True)} fps  '
@@ -401,6 +486,10 @@ def on_init(program, width, height):
     global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density
     global loc_effect_mode, loc_view_mode, loc_mirror, loc_camera_aspect, loc_pixelart_size
     global loc_motion_level, loc_presence_scale, loc_presence_cx, loc_presence_cy
+    global _render_w, _render_h
+
+    _render_w = int(width)
+    _render_h = int(height)
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
     loc_rutt_wave = glsl.glGetUniformLocation(program, b'uRuttWave')
@@ -505,6 +594,7 @@ def on_render(frame, time):
         if _fps_last_report_time is None or (time - _fps_last_report_time) >= 1.0:
             print(f'\r[FPS] {_fps_smoothed:5.1f} fps | {EFFECT_MODE_NAMES[current_effect_mode]} | {_color_mode_name()}        ')
             _fps_last_report_time = time
+    _tick_screenshot_countdown()
 
 glsl.onInit(on_init)
 glsl.onRender(on_render)
@@ -557,6 +647,7 @@ def keyboard_thread():
     global current_rutt_wave, current_ascii_density, current_pixelart_size
     global current_ghost_density, current_raster_size
     global current_effect_mode, current_view_mode, current_mirror_view, _ctrl_c_requested
+    global _shot_deadline, _shot_last_seconds
     import termios
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
@@ -584,6 +675,11 @@ def keyboard_thread():
             if ch == ' ':
                 current_effect_mode = (current_effect_mode + 1) % len(EFFECT_MODE_NAMES)
                 print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]} | [COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
+                continue
+            if ch in ('s', 'S'):
+                _shot_deadline = time.monotonic() + SHOT_COUNTDOWN_SEC
+                _shot_last_seconds = int(SHOT_COUNTDOWN_SEC)
+                print(f'\r[SHOT] {int(SHOT_COUNTDOWN_SEC)}...        ')
                 continue
             if ch in ('f', 'F'):
                 _toggle_fps_logging()

@@ -1,5 +1,7 @@
 # Retina Cannon
 
+![Retina Cannon Demo](demo/retinacannon.png)
+
 ![Python](https://img.shields.io/badge/Python-3-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Hardware](https://img.shields.io/badge/Hardware-Raspberry%20Pi-C51A4A?style=for-the-badge&logo=raspberrypi&logoColor=white)
 ![OpenGL ES](https://img.shields.io/badge/OpenGL%20ES-2.0-A855F7?style=for-the-badge)
@@ -180,6 +182,7 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 | Key | Action |
 |---|---|
 | `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost → Raster Vision |
+| `S` | 3-second countdown then save rendered screenshot to `shots/` |
 | `↑` / `↓` | Cycle color mode (per-effect, independent) |
 | `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density · Raster: dot size |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |

@@ -125,6 +125,7 @@ On the target Raspberry Pi:
 | Key | Action |
 |---|---|
 | Space | Cycle effect mode |
+| S | 3-second countdown then save rendered screenshot to `shots/` |
 | ↑ / ↓ | Cycle color mode (per-effect independent) |
 | ← / → | Adjust effect parameter (wave/density/size/field density/dot size) |
 | V | Cycle view mode |
