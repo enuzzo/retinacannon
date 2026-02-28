@@ -192,6 +192,15 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 
 Arrow keys handle both `ESC [` and `ESC O` prefixes. Because terminal emulators are ungoverned.
 
+### Screenshot Mode (`S`)
+
+Press `S`, get a dramatic 3-second terminal countdown, then a frame dump of whatever glorious visual chaos is on screen.
+
+Files are saved to `shots/` as:
+`YYYYMMDD_HHMMSS_<effect>_<variant>_<view>_mirror-(on|off).png`
+
+So yes, your shader experiments are timestamped evidence now. Very professional.
+
 ---
 
 ## Startup / Shutdown
@@ -210,6 +219,7 @@ On shutdown: clean logo + session stats (duration, estimated frames rendered, av
 | Parameter | Value |
 |---|---|
 | View mode | 16:9 |
+| Mirror | ON (because the camera should stop gaslighting you) |
 | Rutt color | Prism Warp |
 | ASCII color | Color symbols |
 | Pixel Art color | Game Boy |

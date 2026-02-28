@@ -135,3 +135,11 @@
 - kms-glsl: always check for `glsl.so` file, not directory structure.
 - DRM: never SIGKILL; never test with background kill without SIGINT.
 - New effect modes: follow the 8-location checklist in CLAUDE.md.
+
+### [2026-02-28 17:40] Screenshot docs refresh + knowledge sync
+- Goal: document the `S` screenshot feature clearly in README with project tone, and sync knowledge files to current runtime behavior.
+- Actions taken: updated `README.md` controls/defaults with a dedicated `Screenshot Mode (S)` section (countdown, naming pattern, `shots/` destination); refreshed `.codex/MEMORY.md` technical decisions to reflect 5 effects (including Raster Vision), mirror default ON, and screenshot capture behavior; appended this session entry.
+- Errors encountered: none.
+- Fix: n/a.
+- Concrete verification: reviewed resulting docs via `sed`; values now match code constants in `retina_cannon.py` (`EFFECT_MODE_NAMES`, `RASTER_COLOR_MODE_NAMES`, `current_mirror_view = 1`, screenshot save path `RETINA_DIR / 'shots'`).
+- Prevention: when controls/effects change, update `README.md`, `MEMORY.md`, and append `SESSION_LOG.md` in the same session before commit.
