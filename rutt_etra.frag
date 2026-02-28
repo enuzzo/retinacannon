@@ -433,11 +433,39 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 //  uColorMode:
 //    0  Full Color   — camera pixelated, colors corrected (BGR→RGB)
 //    1  Game Boy     — DMG-01 four-shade green palette + LCD pixel gap
-//    2  CGA          — Mode 4 Palette 1 hi: black / cyan / magenta / white
-//    3  Phosphor     — P1 green terminal with subtle bloom
-//    4  Amber        — P3 amber monitor with warm glow
+//    2  CMYK Melt    — print-like cyan/magenta/yellow/black with ordered dither
+//    3  Toxic Candy  — neon candy palette with aggressive quantization
 //
 //  uPixelSize: block edge in screen pixels (4 – 48)
+
+float bayer4(vec2 p) {
+    vec2 m = mod(floor(p), 4.0);
+    float x = m.x;
+    float y = m.y;
+    float v;
+    if (y < 1.0) {
+        if      (x < 1.0) v = 0.0;
+        else if (x < 2.0) v = 8.0;
+        else if (x < 3.0) v = 2.0;
+        else              v = 10.0;
+    } else if (y < 2.0) {
+        if      (x < 1.0) v = 12.0;
+        else if (x < 2.0) v = 4.0;
+        else if (x < 3.0) v = 14.0;
+        else              v = 6.0;
+    } else if (y < 3.0) {
+        if      (x < 1.0) v = 3.0;
+        else if (x < 2.0) v = 11.0;
+        else if (x < 3.0) v = 1.0;
+        else              v = 9.0;
+    } else {
+        if      (x < 1.0) v = 15.0;
+        else if (x < 2.0) v = 7.0;
+        else if (x < 3.0) v = 13.0;
+        else              v = 5.0;
+    }
+    return (v + 0.5) / 16.0;
+}
 
 vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
     float ps = max(uPixelSize, 2.0);
@@ -473,30 +501,31 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
         col = mix(vec3(0.031, 0.110, 0.031), col, bx * by);
 
     } else if (uColorMode == 2) {
-        // ── CGA Mode 4 Palette 1 Hi ─────────────────────────────────────────
-        //    black / cyan / magenta / white
-        int lvl = clamp(int(floor(luma * 4.0)), 0, 3);
-        if      (lvl == 0) col = vec3(0.0);
-        else if (lvl == 1) col = vec3(0.333, 1.0,   1.0  );  // #55FFFF
-        else if (lvl == 2) col = vec3(1.0,   0.333, 1.0  );  // #FF55FF
-        else               col = vec3(1.0);
+        // ── CMYK Melt ───────────────────────────────────────────────────────
+        float t = clamp(luma + (bayer4(blockId) - 0.5) * 0.22, 0.0, 1.0);
+        int lvl = clamp(int(floor(t * 4.0)), 0, 3);
+        if      (lvl == 0) col = vec3(0.040, 0.040, 0.055);  // rich black
+        else if (lvl == 1) col = vec3(0.980, 0.130, 0.710);  // magenta
+        else if (lvl == 2) col = vec3(0.000, 0.760, 1.000);  // cyan
+        else               col = vec3(1.000, 0.900, 0.000);  // yellow
+
+        // Fake print "ink pooling" in larger blocks.
+        float edge = min(min(inBlock.x, 1.0 - inBlock.x), min(inBlock.y, 1.0 - inBlock.y));
+        col *= mix(0.85, 1.03, smoothstep(0.00, 0.24, edge));
 
     } else if (uColorMode == 3) {
-        // ── Phosphor P1 green ───────────────────────────────────────────────
-        float g = pow(luma, 0.85) * 0.92;
-        col  = vec3(0.0, g, g * 0.06);                // slight warm tinge
-        col += vec3(0.0, luma * luma * 0.10, 0.0);   // soft bloom
-        // subtle vignette for CRT feel
-        float vig = pow(clamp(16.0 * puv.x * puv.y * (1.0-puv.x) * (1.0-puv.y), 0.0, 1.0), 0.30);
-        col *= mix(0.55, 1.0, vig);
+        // ── Toxic Candy ─────────────────────────────────────────────────────
+        float sat = length(raw - vec3(getLuma(raw)));
+        float t = clamp(pow(luma, 0.88) + (bayer4(blockId + 1.0) - 0.5) * 0.26, 0.0, 1.0);
+        int lvl = clamp(int(floor(t * 5.0)), 0, 4);
+        if      (lvl == 0) col = vec3(0.070, 0.070, 0.090);  // near-black
+        else if (lvl == 1) col = vec3(0.224, 1.000, 0.078);  // toxic green
+        else if (lvl == 2) col = vec3(0.000, 0.898, 1.000);  // electric cyan
+        else if (lvl == 3) col = vec3(1.000, 0.310, 0.847);  // candy magenta
+        else               col = vec3(1.000, 0.953, 0.690);  // pale glow
 
-    } else if (uColorMode == 4) {
-        // ── Amber P3 monitor ────────────────────────────────────────────────
-        float a = pow(luma, 0.88) * 0.96;
-        col  = vec3(a * 1.10, a * 0.54, 0.0);
-        col += vec3(a * a * 0.09, a * a * 0.04, 0.0); // warm bloom
-        float vig = pow(clamp(16.0 * puv.x * puv.y * (1.0-puv.x) * (1.0-puv.y), 0.0, 1.0), 0.30);
-        col *= mix(0.55, 1.0, vig);
+        // Push neon accents where source saturation is high.
+        col = mix(col, col * vec3(1.05, 1.10, 1.05), smoothstep(0.18, 0.58, sat));
 
     } else {
         col = raw;

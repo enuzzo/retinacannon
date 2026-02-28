@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, select, termios, signal, subprocess, random, math
+import sys, os, glob, threading, select, termios, signal, subprocess, random, math, shutil
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 from datetime import datetime
@@ -146,10 +146,10 @@ ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono 
 PIXELART_COLOR_MODE_NAMES = [
     'Full Color',
     'Game Boy',
-    'CGA',
-    'Phosphor',
-    'Amber',
+    'CMYK Melt',
+    'Toxic Candy',
 ]
+PIXELART_MODE_DEFAULT_SIZES = [12.0, 16.0, 22.0, 8.0]
 GHOST_COLOR_MODE_NAMES = ['Void', 'Matrix', 'Ghost Cam', 'Neon', 'Thermal', 'Chromatic']
 RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic B/W', 'Comic Pastel', 'Vibrant Pop']
 EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art', 'Signal Ghost', 'Raster Vision']
@@ -173,16 +173,52 @@ _render_h = 0
 _shot_deadline = None
 _shot_last_seconds = None
 SHOT_COUNTDOWN_SEC = 3.0
+_splash_seconds = 10
 
-_BOOT_QUOTES = [
-    '"The map is not the territory."  — Korzybski',
-    '"The medium is the message."  — McLuhan',
-    '"Television is not the truth."  — Paddy Chayefsky, Network (1976)',
-    '"Reality is merely an illusion, albeit a persistent one."  — Einstein',
-    '"All models are wrong. Some are useful."  — George Box',
-    '"We shape our tools, and thereafter our tools shape us."  — McLuhan',
-    '"Seeing is forgetting the name of the thing one sees."  — Paul Valéry',
-    '"The screen is the new canvas."  — Netmilk Studio',
+_BOOT_LINES = [
+    'Tracking lock acquired. Keep your face in frame and pretend this was planned.',
+    'Analog ghosts detected. Digitizing in 3...2...none.',
+    'Signal aligned. Distortion budget approved.',
+    'No menu. No mercy. Just shaders.',
+    'Tape hiss at nominal level. Visual noise online.',
+    'Bootleg aesthetics engaged. Copyright lawyers asleep.',
+    'CRT mood loaded. Reality set to unstable.',
+    'Luma channel hungry. Feed it movement.',
+    'Scanlines warming up. Please remain dramatic.',
+    'Camera armed. Ego unarmed.',
+    'Broadcast override accepted. Party standards lowered.',
+    'Late-night lab protocol active. Keep lights ugly.',
+    'Vector fever rising. Stay in the blast radius.',
+    'Old-school pixels, new-school attitude.',
+    'Magnetic tape vibes: immaculate. Sync pulse: feral.',
+    'Raster lock achieved. Proceed with chaos.',
+    'Warez soul, museum output.',
+    'Frame pipeline hot. Art excuses ready.',
+    'Underground TV station online.',
+    'Unauthorized beauty mode enabled.',
+]
+
+_SHUTDOWN_LINES = [
+    'Target lost. Rewind the tape and try again.',
+    'Signal dropped. Night shift over.',
+    'Transmission cut. Keep the noise alive.',
+    'Raster collapsed. Good chaos session.',
+    'Camera cool-down initiated. VHS dreams pending.',
+    'Broadcast ended. Applause optional.',
+    'Shutdown clean. Scene still illegal.',
+    'No survivors, only screenshots.',
+    'Tape ejected. Mood preserved.',
+    'Visual feed terminated. Memories corrupted.',
+    'Sync pulse gone. Heartbeat remains.',
+    'End of transmission. Stay weird.',
+    'Static wins tonight.',
+    'Render lights out. See you in the next glitch.',
+    'The cannon sleeps. The ghosts do not.',
+    'Party closed. Artifact levels still critical.',
+    'Output muted. Legend inflated.',
+    'Video noise archived. Reality restored.',
+    'Good hunt. Bring more faces next run.',
+    'Channel closed. Keep it underground.',
 ]
 
 _BLOCK_CHARS = '░▒▓█▓▒░'
@@ -205,6 +241,15 @@ ANSI_RAINBOW = [
     '\033[38;5;51m',   # cyan
     '\033[38;5;21m',   # blue
     '\033[38;5;201m',  # magenta
+]
+
+ANSI_VHS_RAINBOW = [
+    '\033[38;5;213m',  # pink/magenta
+    '\033[38;5;39m',   # electric cyan
+    '\033[38;5;228m',  # warm tape yellow
+    '\033[38;5;208m',  # orange
+    '\033[38;5;45m',   # aqua
+    '\033[38;5;201m',  # neon magenta
 ]
 
 RETINA_CANNON_ASCII = [
@@ -261,10 +306,215 @@ def _styled(text, color='', bold=False, dim=False):
     style += color
     return f'{style}{text}{ANSI_RESET}' if style else text
 
+def _term_size():
+    return shutil.get_terminal_size(fallback=(100, 30))
+
+def _center_text_line(line, width):
+    if len(line) >= width:
+        return line
+    return (' ' * ((width - len(line)) // 2)) + line
+
+def _vhs_rainbow_line(line, phase=0):
+    out = []
+    for i, ch in enumerate(line):
+        if ch == ' ':
+            out.append(' ')
+            continue
+        color = ANSI_VHS_RAINBOW[(i + phase) % len(ANSI_VHS_RAINBOW)]
+        out.append(f'{color}{ch}{ANSI_RESET}')
+    return ''.join(out)
+
+def _clear_to_black():
+    # Full clear + cursor home + hide cursor to make splash look intentional.
+    print('\033[2J\033[H\033[?25l', end='', flush=True)
+
+def _show_cursor():
+    print('\033[?25h', end='', flush=True)
+
+def _max_line_width(lines):
+    return max((len(ln) for ln in lines), default=0)
+
+def _figlet_title_lines(max_width=None):
+    figlet_bin = shutil.which('figlet')
+    best = None
+    if figlet_bin:
+        local_font_dir = RETINA_DIR / 'fonts'
+        local_candidates = (
+            ('Slant Relief', str(local_font_dir)),
+            ('slantrelief', str(local_font_dir)),
+        )
+        system_candidates = (
+            ('slantrelief', None),
+            ('slant', None),
+            ('standard', None),
+            ('small', None),
+            ('mini', None),
+        )
+        for font, font_dir in (local_candidates + system_candidates):
+            try:
+                cmd = [figlet_bin]
+                if font_dir:
+                    cmd += ['-d', font_dir]
+                # Force wide render to prevent figlet's default 80-col wrapping.
+                cmd += ['-w', '1000', '-f', font, 'Retina Cannon']
+                out = subprocess.check_output(cmd, text=True, timeout=2.0)
+                lines = [ln.rstrip() for ln in out.splitlines() if ln.strip()]
+                if lines:
+                    width = _max_line_width(lines)
+                    if max_width is None or width <= max_width:
+                        return lines
+                    if best is None or width < _max_line_width(best):
+                        best = lines
+            except Exception:
+                continue
+    if best is not None:
+        return best
+    if max_width is not None and len('RETINA CANNON') <= max_width:
+        return ['RETINA CANNON']
+    return RETINA_CANNON_ASCII
+
+def _lolcat_colorize(text):
+    lolcat_bin = shutil.which('lolcat')
+    if not lolcat_bin and os.path.isfile('/usr/games/lolcat'):
+        lolcat_bin = '/usr/games/lolcat'
+    if not lolcat_bin:
+        return None
+    try:
+        return subprocess.check_output(
+            [lolcat_bin, '-f'],
+            input=text,
+            text=True,
+            timeout=2.0,
+        )
+    except Exception:
+        return None
+
+def _print_centered_lolcat_line(text, cols, fallback_color=ANSI_CYAN, dim=True):
+    centered = _center_text_line(text, cols)
+    colored = _lolcat_colorize(centered + '\n')
+    if colored is not None:
+        print(colored, end='')
+    else:
+        print(_styled(centered, fallback_color, dim=dim))
+
+def _countdown_progress_line(current, start, cols):
+    nums = list(range(start, -1, -1))
+    plain = ' - '.join(str(v) for v in nums)
+    pad = ' ' * max((cols - len(plain)) // 2, 0)
+    gray_scale = [
+        '\033[38;5;240m',  # dark gray
+        '\033[38;5;244m',  # medium gray
+        '\033[38;5;248m',  # light gray
+        '\033[37m',        # white
+    ]
+    parts = []
+    for i, v in enumerate(nums):
+        if i > 0:
+            parts.append(_styled('-', ANSI_DIM))
+        if v > current:
+            done = (start - v + 1)
+            ratio = done / float(max(start, 1))
+            idx = min(len(gray_scale) - 1, int(ratio * len(gray_scale)))
+            parts.append(_styled(str(v), gray_scale[idx], bold=True))
+        elif v == current:
+            parts.append(_styled(str(v), '\033[38;5;252m', bold=True))
+        else:
+            parts.append(_styled(str(v), '\033[38;5;236m'))
+    return pad + ' '.join(parts)
+
+def _print_centered_title(title_lines, cols, phase=0):
+    centered = [_center_text_line(ln, cols) for ln in title_lines]
+    plain = '\n'.join(centered) + '\n'
+    colored = _lolcat_colorize(plain)
+    if colored is not None:
+        print(colored, end='')
+        return
+    for ln in centered:
+        print(_vhs_rainbow_line(ln, phase), flush=True)
+
+def _wait_splash_release():
+    # Optional hold mode: wait on /dev/tty so boot can be staged manually.
+    try:
+        fd = os.open('/dev/tty', os.O_RDONLY)
+    except OSError:
+        time.sleep(3.0)
+        return
+    old = None
+    try:
+        old = termios.tcgetattr(fd)
+        new = termios.tcgetattr(fd)
+        new[3] &= ~(termios.ICANON | termios.ECHO)
+        new[6][termios.VMIN] = 1
+        new[6][termios.VTIME] = 0
+        termios.tcsetattr(fd, termios.TCSADRAIN, new)
+        os.read(fd, 1)
+    finally:
+        if old is not None:
+            try:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            except Exception:
+                pass
+        os.close(fd)
+
+def _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, phase):
+    _clear_to_black()
+    print(base, end='')
+    _print_centered_title(title, cols, phase=phase)
+    print()
+    print(_styled(_center_text_line(credit_a, cols), ANSI_WHITE, dim=True))
+    print(_styled(_center_text_line(credit_b, cols), ANSI_DIM))
+    print()
+    print()
+    _print_centered_lolcat_line(quote, cols, fallback_color=ANSI_CYAN, dim=True)
+    print()
+
+def _print_vhs_splash(countdown_seconds):
+    cols, rows = _term_size()
+    title = _figlet_title_lines(max_width=max(16, cols - 2))
+    credit_a = 'Netmilk Studio sagl'
+    credit_b = 'Retina Cannon // VHS night build'
+    quote = random.choice(_BOOT_LINES)
+
+    text_h = len(title) + 5
+    top_pad = max((rows - text_h) // 2, 1)
+    base = '\n' * top_pad
+
+    # Single stable frame: no flashing during pre-countdown.
+    _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, 12)
+
+    if countdown_seconds < 0:
+        _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, 12)
+        print(_styled(_center_text_line('[HOLD] Press any key to SHOOT', cols), ANSI_YELLOW, bold=True))
+        _wait_splash_release()
+    else:
+        start = max(1, int(countdown_seconds))
+        _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, 12)
+        for n in range(start, -1, -1):
+            print('\r' + _countdown_progress_line(n, start, cols) + '\033[K', end='', flush=True)
+            time.sleep(1.0)
+        print()
+
+    _clear_to_black()
+    print(base, end='')
+    _print_centered_title(title, cols, phase=14)
+    print()
+    print(_styled(_center_text_line(credit_a, cols), ANSI_WHITE, dim=True))
+    print(_styled(_center_text_line('SHOOTING', cols), ANSI_RED, bold=True))
+    time.sleep(0.45)
+    _clear_to_black()
+    _show_cursor()
+
 def _print_retina_logo(offset=0):
-    for i, line in enumerate(RETINA_CANNON_ASCII):
-        color = ANSI_RAINBOW[(i + offset) % len(ANSI_RAINBOW)]
-        print(_styled(line, color, bold=True))
+    cols, _ = _term_size()
+    lines = _figlet_title_lines(max_width=max(16, cols - 2))
+    plain = '\n'.join(lines) + '\n'
+    colored = _lolcat_colorize(plain)
+    if colored is not None:
+        print(colored, end='')
+    else:
+        for i, line in enumerate(lines):
+            color = ANSI_RAINBOW[(i + offset) % len(ANSI_RAINBOW)]
+            print(_styled(line, color, bold=True))
     print(_styled('Copyright (c) Netmilk Studio sagl', ANSI_WHITE, dim=True))
     print(_styled('Licensed under the MIT License', ANSI_WHITE, dim=True))
 
@@ -302,17 +552,20 @@ def _active_color_mode():
     return current_raster_color_mode
 
 def _set_active_color_mode(mode):
-    global current_rutt_color_mode, current_ascii_color_mode
+    global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_size
     global current_pixelart_color_mode, current_ghost_color_mode, current_raster_color_mode
     if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
     elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
-    elif current_effect_mode == 2: current_pixelart_color_mode    = mode % len(PIXELART_COLOR_MODE_NAMES)
+    elif current_effect_mode == 2:
+        current_pixelart_color_mode = mode % len(PIXELART_COLOR_MODE_NAMES)
+        # Give each pixel preset a useful default block size while keeping live tweak on arrows.
+        current_pixelart_size = PIXELART_MODE_DEFAULT_SIZES[current_pixelart_color_mode]
     elif current_effect_mode == 3: current_ghost_color_mode        = mode % len(GHOST_COLOR_MODE_NAMES)
     else:                          current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
-    print(f'\r[COLOR] {_color_mode_name()}        ')
+    print(f'\r[COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
 
 def _effect_param_label():
     if current_effect_mode == 0:   return f'[RUTT] Wave {current_rutt_wave:.2f}x'
@@ -407,15 +660,7 @@ def _toggle_fps_logging():
 def _print_startup_banner():
     global _session_start
     _session_start = time.time()
-    print()
-
-    # Logo with scan-line effect: each line appears with a brief delay
-    for i, line in enumerate(RETINA_CANNON_ASCII):
-        color = ANSI_RAINBOW[i % len(ANSI_RAINBOW)]
-        print(_styled(line, color, bold=True))
-        time.sleep(0.045)
-    print(_styled('Copyright (c) Netmilk Studio sagl', ANSI_WHITE, dim=True))
-    print(_styled('Licensed under the MIT License', ANSI_WHITE, dim=True))
+    _print_vhs_splash(_splash_seconds)
     print()
 
     # System stats
@@ -440,9 +685,9 @@ def _print_startup_banner():
     print(_styled('  ╚' + '═' * 51 + '╝', ANSI_MAGENTA, bold=True))
     print()
 
-    # Random nerd quote
-    quote = random.choice(_BOOT_QUOTES)
-    print(f'  {_styled(quote, ANSI_DIM)}')
+    # Random startup line
+    line = random.choice(_BOOT_LINES)
+    print(f'  {_styled(line, ANSI_DIM)}')
     print()
 
     print(f'  {_styled("↑↓", ANSI_CYAN, bold=True)} color  '
@@ -471,12 +716,14 @@ def _print_shutdown_banner(reason):
               f'  {_styled("  Avg FPS ~", ANSI_DIM)}{_styled(f"{_fps_smoothed:.1f}", ANSI_WHITE, bold=True)}')
         print()
 
-    if reason in ('ctrl_c', 'signal'):
-        print(f'  {_styled("▶", ANSI_CYAN, bold=True)} {_styled("Target lost. Cannon reloading.", ANSI_WHITE)}')
-    elif reason.startswith('init_error') or reason.startswith('run_error'):
-        print(f'  {_styled("▶", ANSI_RED, bold=True)} {_styled(f"Renderer exited with error: {reason}", ANSI_RED)}')
+    line = random.choice(_SHUTDOWN_LINES)
+    if reason.startswith('init_error') or reason.startswith('run_error'):
+        print(f'  {_styled("▶", ANSI_RED, bold=True)} {_styled(f"Renderer error: {reason}", ANSI_RED)}')
+        print(f'  {_styled("▶", ANSI_MAGENTA, bold=True)} {_styled(line, ANSI_WHITE)}')
+    elif reason in ('ctrl_c', 'signal'):
+        print(f'  {_styled("▶", ANSI_CYAN, bold=True)} {_styled(line, ANSI_WHITE)}')
     else:
-        print(f'  {_styled("▶", ANSI_GREEN, bold=True)} {_styled("Session closed cleanly. See you on the next visual test.", ANSI_WHITE)}')
+        print(f'  {_styled("▶", ANSI_GREEN, bold=True)} {_styled(line, ANSI_WHITE)}')
 
     print(_styled('  ' + '─' * 51, ANSI_DIM))
     print()
@@ -747,8 +994,15 @@ threading.Thread(target=keyboard_thread, daemon=True).start()
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('shader', nargs='?', default=str(RETINA_DIR / 'rutt_etra.frag'))
+parser.add_argument(
+    '--splash',
+    type=int,
+    default=10,
+    help='Splash countdown in seconds before render starts (-1 = hold until keypress).',
+)
 args = parser.parse_args()
 _shader_name = Path(args.shader).name
+_splash_seconds = int(args.splash)
 
 class FakeArgs:
     shader = [Path(args.shader)]

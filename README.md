@@ -68,15 +68,14 @@ Every camera pixel gets mapped to a glyph from an 8x8 bitmap font hardcoded insi
 
 ### Pixel Art
 
-The camera downsampled to a grid of blocks, each rendered as a single pixel of a retro palette. The block size is tunable from near-native (4px) to aggressively chunky (48px).
+The camera downsampled to a grid of blocks, each rendered as a single pixel of a retro palette. The block size is tunable from near-native (4px) to aggressively chunky (48px). Cycling Pixel color mode applies a per-mode default size first, then `←` / `→` still tweak live.
 
 | Mode | Look |
 |---|---|
 | Full Color | Pixelated camera, BGR corrected |
 | Game Boy | DMG-01 four-shade green + authentic LCD pixel gap |
-| CGA | Mode 4 Palette 1 hi: black / cyan / magenta / white |
-| Phosphor | P1 green terminal with bloom + CRT vignette |
-| Amber | P3 amber monitor with warm glow + CRT vignette |
+| CMYK Melt | Cyan/magenta/yellow/black print chaos with ordered dither |
+| Toxic Candy | Neon candy palette with aggressive quantization |
 
 ### Raster Vision
 
