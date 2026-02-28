@@ -34,6 +34,16 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ---
 
+## TL;DR
+
+Live Pi camera -> one GLSL shader -> fullscreen on the GPU: no desktop, no bullshit.  
+`Space` cambia effetto (5 totali), frecce regolano live, `V/M/F/S` fanno view/mirror/FPS/screenshot.  
+Lancia `./start_cannon.sh`, inquadra una faccia, ottieni subito arte glitch da salotto.  
+Serve Raspberry Pi + camera + `kms-glsl`; se manca `glsl.so` esplode subito (giustamente).  
+Fine: HDMI + corrente, e sembri uno che l'ha progettato per settimane.
+
+---
+
 ## Effects
 
 Five effects, all in a single shader, switchable live with `Space`:
