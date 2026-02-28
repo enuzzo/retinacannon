@@ -36,11 +36,12 @@ Copyright (c) Netmilk Studio sagl — MIT License.
    - `_presence_cx/cy`: weighted centroid of above-average bright regions
 3. **Render callback** — called by kms-glsl's C render loop; uploads the latest
    camera frame (`glTexSubImage2D`) and sets all uniforms every frame.
-4. **GLSL shader** — `rutt_etra.frag` implements four effects via `uEffectMode`:
+4. **GLSL shader** — `rutt_etra.frag` implements five effects via `uEffectMode`:
    - **0 Rutt-Etra CRT** — luminance-displaced scan lines, CRT curvature, vignette, noise
    - **1 ASCII Cam** — bitmap font glyphs mapped from luminance (font8x8_basic)
    - **2 Pixel Art** — camera pixelated to a block grid with retro palette modes
    - **3 Signal Ghost** — interactive generative typography driven by motion/presence
+   - **4 Raster Vision** — dedicated variable-dot raster/halftone modes (thermal + comic looks)
 5. **Keyboard thread** — reads `/dev/tty` in raw mode via `select()` with 0.5s timeout
    (non-blocking so it exits cleanly when `_running` goes False).
 6. **Signal handlers** — `SIGTERM` and `SIGHUP` trigger the same graceful shutdown
@@ -92,12 +93,13 @@ On the target Raspberry Pi:
 | `iChannel0` | sampler2D | Camera texture (BGR uploaded as GL_RGB — `.bgr` swizzle to correct) |
 | `iResolution` | vec2 | Display resolution (set by kms-glsl) |
 | `iTime` | float | Elapsed time in seconds (set by kms-glsl) |
-| `uEffectMode` | int | 0=Rutt, 1=ASCII, 2=PixelArt, 3=SignalGhost |
+| `uEffectMode` | int | 0=Rutt, 1=ASCII, 2=PixelArt, 3=SignalGhost, 4=RasterVision |
 | `uColorMode` | int | Per-effect color palette index |
 | `uRuttWave` | float | Rutt-Etra displacement multiplier (0.40–3.80) |
 | `uAsciiDensity` | float | ASCII density / Ghost field density (1.0–6.0) |
-| `uPixelSize` | float | Pixel Art block size in screen pixels (4–48) |
+| `uPixelSize` | float | Pixel Art block size / Raster dot-cell size in screen pixels (4–48) |
 | `uViewMode` | int | 0=16:9, 1=4:3, 2=Fisheye |
+| `uMirror` | int | 0=off, 1=horizontal mirror of current view |
 | `uCameraAspect` | float | Camera W/H ratio |
 | `uMotionLevel` | float | Frame-diff motion magnitude 0–1 |
 | `uPresenceScale` | float | Scene luminance proxy 0–1 |
@@ -112,9 +114,11 @@ On the target Raspberry Pi:
 
 **ASCII Cam (uEffectMode=1):** Color symbols · Monochrome symbols · Inverted mono · Inverted color
 
-**Pixel Art (uEffectMode=2):** Full Color · Game Boy · CGA · Phosphor · Amber · Infrared
+**Pixel Art (uEffectMode=2):** Full Color · Game Boy · CGA · Phosphor · Amber
 
 **Signal Ghost (uEffectMode=3):** Void · Matrix · Ghost Cam · Neon · Thermal · Chromatic
+
+**Raster Vision (uEffectMode=4):** Thermal Raster · Thermal Inverted · Comic B/W · Comic Pastel · Vibrant Pop
 
 ## Runtime controls
 
@@ -122,8 +126,9 @@ On the target Raspberry Pi:
 |---|---|
 | Space | Cycle effect mode |
 | ↑ / ↓ | Cycle color mode (per-effect independent) |
-| ← / → | Adjust effect parameter (wave/density/size/field density) |
+| ← / → | Adjust effect parameter (wave/density/size/field density/dot size) |
 | V | Cycle view mode |
+| M | Toggle horizontal mirror of current view |
 | F | Toggle FPS terminal logging |
 | Ctrl+C | Graceful shutdown |
 
@@ -132,8 +137,9 @@ On the target Raspberry Pi:
 - **Default view**: 16:9
 - **Rutt-Etra** color: `Prism Warp` (index 2)
 - **ASCII Cam** color: `Color symbols` (index 0), density 3.00
-- **Pixel Art** color: `Full Color` (index 0), block size 8px
+- **Pixel Art** color: `Game Boy` (index 1), block size 16px
 - **Signal Ghost** color: `Void` (index 0), field density 2.0
+- **Raster Vision** color: `Thermal Raster` (index 0), dot size 12px
 - **Rutt wave**: 0.40 (range 0.40–3.80, step 0.10)
 - **FPS baseline**: ~20 FPS on RPi4
 

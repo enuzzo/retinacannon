@@ -4,6 +4,7 @@ uniform float uRuttWave;
 uniform float uAsciiDensity;
 uniform int uEffectMode;
 uniform int uViewMode;
+uniform int uMirror;
 uniform float uCameraAspect;
 uniform int uShowFps;
 uniform float uFpsValue;
@@ -105,6 +106,13 @@ float hash12(vec2 p) {
 
 vec2 safeUV(vec2 uv) {
     return clamp(uv, vec2(0.001), vec2(0.999));
+}
+
+vec2 cameraMirrorUV(vec2 uv) {
+    if (uMirror != 0) {
+        uv.x = 1.0 - uv.x;
+    }
+    return uv;
 }
 
 vec3 liftShadows(vec3 color) {
@@ -277,14 +285,14 @@ vec3 drawFpsOverlay(vec3 color, vec2 fragCoord) {
 }
 
 vec3 renderRutt(vec2 uv, vec2 fragCoord) {
-    vec2 sampleBase = uv;
+    vec2 sampleBase = cameraMirrorUV(uv);
     if (uColorMode == 2) {
         sampleBase += vec2(
-            sin((uv.y + iTime * 0.20) * 16.0),
-            cos((uv.x - iTime * 0.16) * 13.0)
+            sin((sampleBase.y + iTime * 0.20) * 16.0),
+            cos((sampleBase.x - iTime * 0.16) * 13.0)
         ) * 0.006;
     } else if (uColorMode == 3) {
-        vec2 p = uv - 0.5;
+        vec2 p = sampleBase - 0.5;
         float r = length(p);
         float a = atan(p.y, p.x);
         a += sin(r * 8.0 - iTime * 0.18) * 0.032;
@@ -369,6 +377,7 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     vec2 cellId = floor(cell);
     vec2 cellUV = fract(cell);
     vec2 sampleUV = safeUV((cellId + 0.5) / grid);
+    sampleUV = cameraMirrorUV(sampleUV);
 
     vec3 camColor = liftShadows(texture(iChannel0, sampleUV).rgb);
     float luma = getLuma(camColor);
@@ -427,7 +436,6 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 //    2  CGA          — Mode 4 Palette 1 hi: black / cyan / magenta / white
 //    3  Phosphor     — P1 green terminal with subtle bloom
 //    4  Amber        — P3 amber monitor with warm glow
-//    5  Infrared     — FLIR jet colormap, white-hot
 //
 //  uPixelSize: block edge in screen pixels (4 – 48)
 
@@ -438,6 +446,7 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
     vec2 blockId     = floor(fragCoord / ps);
     vec2 blockCenter = (blockId + 0.5) * ps;
     vec2 puv         = safeUV(blockCenter / iResolution.xy);
+    puv = cameraMirrorUV(puv);
     vec2 inBlock     = fract(fragCoord / ps);   // 0..1 inside the block
 
     vec3 raw  = texture(iChannel0, puv).bgr;    // camera is BGR — swap once
@@ -490,14 +499,98 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
         col *= mix(0.55, 1.0, vig);
 
     } else {
-        // ── Infrared / FLIR jet ─────────────────────────────────────────────
-        //    cold (blue) → cyan → green → yellow → orange → red → white-hot
-        float t = luma;
-        float r = clamp(1.5 - abs(4.0 * t - 3.0), 0.0, 1.0);
-        float g = clamp(1.5 - abs(4.0 * t - 2.0), 0.0, 1.0);
-        float b = clamp(1.5 - abs(4.0 * t - 1.0), 0.0, 1.0);
-        col = vec3(r, g, b);
-        col = mix(col, vec3(1.0), smoothstep(0.88, 1.0, luma)); // white-hot
+        col = raw;
+    }
+
+    return clamp(col, 0.0, 1.0);
+}
+
+vec3 thermalJet(float t) {
+    float r = clamp(1.5 - abs(4.0 * t - 3.0), 0.0, 1.0);
+    float g = clamp(1.5 - abs(4.0 * t - 2.0), 0.0, 1.0);
+    float b = clamp(1.5 - abs(4.0 * t - 1.0), 0.0, 1.0);
+    vec3 jet = vec3(r, g, b);
+    return mix(jet, vec3(1.0), smoothstep(0.90, 1.0, t));
+}
+
+float edgeLuma4(vec2 uv, float stepUV) {
+    vec2 dx = vec2(stepUV, 0.0);
+    vec2 dy = vec2(0.0, stepUV);
+    float lR = liftShadowLuma(getLuma(texture(iChannel0, safeUV(uv + dx)).bgr));
+    float lL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(uv - dx)).bgr));
+    float lU = liftShadowLuma(getLuma(texture(iChannel0, safeUV(uv + dy)).bgr));
+    float lD = liftShadowLuma(getLuma(texture(iChannel0, safeUV(uv - dy)).bgr));
+    return clamp(length(vec2(lR - lL, lU - lD)) * 2.4, 0.0, 1.0);
+}
+
+// ── Raster Vision ──────────────────────────────────────────────────────────
+//
+//  uColorMode:
+//    0  Thermal Raster   — blue cold / red hot
+//    1  Thermal Inverted — red cold / blue hot
+//    2  Comic B/W        — halftone ink with edge lines
+//    3  Comic Pastel     — soft quantized halftone
+//    4  Vibrant Pop      — saturated comic print
+//
+//  uPixelSize controls dot-cell size (left/right arrows in mode 4)
+//  Larger value => fewer, larger dots. Smaller => denser raster.
+vec3 renderRasterVision(vec2 uv, vec2 fragCoord) {
+    float ps = max(uPixelSize, 2.0);
+
+    vec2 blockId     = floor(fragCoord / ps);
+    vec2 blockCenter = (blockId + 0.5) * ps;
+    vec2 puv         = safeUV(blockCenter / iResolution.xy);
+    puv = cameraMirrorUV(puv);
+    vec2 dotUV       = fract(fragCoord / ps) - 0.5;
+
+    vec3 raw  = texture(iChannel0, puv).bgr;
+    float luma = liftShadowLuma(getLuma(raw));
+
+    float seed = hash12(blockId * vec2(0.73, 1.31) + 9.17);
+    float var = (seed - 0.5) * 0.16;
+    vec2 jitter = (vec2(
+        hash12(blockId + vec2(17.0, 11.0)),
+        hash12(blockId + vec2(5.0, 23.0))
+    ) - 0.5) * 0.20;
+    vec2 dotP = dotUV + jitter;
+    float edgeStep = max(ps / min(iResolution.x, iResolution.y), 0.0015);
+    float edge = edgeLuma4(puv, edgeStep);
+
+    vec3 col;
+    if (uColorMode == 0 || uColorMode == 1) {
+        float t = (uColorMode == 1) ? (1.0 - luma) : luma;
+        vec3 heat = thermalJet(t);
+        float radius = clamp(0.09 + pow(t, 0.78) * 0.36 + var, 0.05, 0.48);
+        float dot = 1.0 - smoothstep(radius, radius + (0.055 + 1.2 / ps), length(dotP));
+        vec3 bg = mix(vec3(0.010, 0.015, 0.020), heat * 0.32, 0.22);
+        col = mix(bg, heat, dot);
+        col = mix(col, vec3(0.0), smoothstep(0.34, 0.62, edge) * 0.10);
+    } else if (uColorMode == 2) {
+        float ink = clamp(1.0 - luma, 0.0, 1.0);
+        float radius = clamp(0.07 + ink * 0.39 + var * 0.60, 0.05, 0.47);
+        float dot = 1.0 - smoothstep(radius, radius + (0.050 + 0.9 / ps), length(dotP));
+        vec3 paper = vec3(0.95, 0.94, 0.90);
+        vec3 line = vec3(0.07);
+        col = mix(paper, line, dot * (0.58 + ink * 0.42));
+        col = mix(col, line, smoothstep(0.16, 0.34, edge));
+    } else if (uColorMode == 3) {
+        vec3 pastel = clamp(raw * 0.58 + vec3(0.36), 0.0, 1.0);
+        pastel = floor(pastel * 5.0) / 4.0;
+        float ink = clamp(1.0 - luma * 0.90, 0.0, 1.0);
+        float radius = clamp(0.07 + ink * 0.35 + var * 0.50, 0.05, 0.46);
+        float dot = 1.0 - smoothstep(radius, radius + (0.050 + 0.9 / ps), length(dotP));
+        vec3 paper = vec3(0.98, 0.95, 0.90);
+        col = mix(paper, pastel, dot * 0.88 + 0.08);
+        col = mix(col, pastel * 0.55, smoothstep(0.20, 0.40, edge));
+    } else {
+        vec3 pop = clamp(pow(raw, vec3(0.80)) * 1.35, 0.0, 1.0);
+        pop = floor(pop * 6.0) / 5.0;
+        float tone = clamp(luma, 0.0, 1.0);
+        float radius = clamp(0.08 + tone * 0.36 + var * 0.50, 0.05, 0.47);
+        float dot = 1.0 - smoothstep(radius, radius + (0.050 + 0.9 / ps), length(dotP));
+        vec3 bg = mix(vec3(0.03, 0.03, 0.04), pop * 0.35, 0.35);
+        col = mix(bg, pop, dot);
+        col = mix(col, vec3(0.02), smoothstep(0.22, 0.42, edge) * 0.62);
     }
 
     return clamp(col, 0.0, 1.0);
@@ -524,7 +617,7 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
 vec3 renderSignalGhost(vec2 uv, vec2 fragCoord) {
     float motion   = clamp(uMotionLevel, 0.0, 1.0);
     float presence = clamp(uPresenceScale * 1.6, 0.0, 1.0);
-    vec2  presPos  = vec2(uPresenceCX, uPresenceCY);
+    vec2  presPos  = vec2((uMirror != 0) ? (1.0 - uPresenceCX) : uPresenceCX, uPresenceCY);
 
     // Grid: density from left/right arrows
     float cols     = 10.0 + uAsciiDensity * 6.0;     // ~13–40 columns
@@ -583,7 +676,7 @@ vec3 renderSignalGhost(vec2 uv, vec2 fragCoord) {
     float glow = ink * motion * burst * proximity * 0.45;
 
     // Camera sample for color modes
-    vec2 sampleUV  = safeUV(cellCenter);
+    vec2 sampleUV  = safeUV(cameraMirrorUV(cellCenter));
     vec3 camCol    = texture(iChannel0, sampleUV).bgr;
     float cellLuma = liftShadowLuma(getLuma(camCol));
 
@@ -658,8 +751,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         color = renderAscii(uv, fragCoord);
     } else if (uEffectMode == 2) {
         color = renderPixelArt(uv, fragCoord);
-    } else {
+    } else if (uEffectMode == 3) {
         color = renderSignalGhost(uv, fragCoord);
+    } else {
+        color = renderRasterVision(uv, fragCoord);
     }
     fragColor = vec4(color, 1.0);
 }

@@ -102,6 +102,7 @@ loc_rutt_wave = -1
 loc_ascii_density = -1
 loc_effect_mode = -1
 loc_view_mode = -1
+loc_mirror = -1
 loc_camera_aspect = -1
 loc_pixelart_size = -1
 loc_motion_level = -1
@@ -110,17 +111,20 @@ loc_presence_cx = -1
 loc_presence_cy = -1
 current_rutt_color_mode = 2
 current_ascii_color_mode = 0
-current_pixelart_color_mode = 0
+current_pixelart_color_mode = 1
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
-current_pixelart_size = 8.0
+current_pixelart_size = 16.0
 current_ghost_color_mode = 0
 current_ghost_density = 2.0
+current_raster_color_mode = 0
+current_raster_size = 12.0
 GHOST_DENSITY_STEP = 0.25
 GHOST_DENSITY_MIN = 0.5
 GHOST_DENSITY_MAX = 5.0
 current_effect_mode = 0
 current_view_mode = 0
+current_mirror_view = 1
 current_show_fps = 0
 RUTT_WAVE_STEP = 0.10
 RUTT_WAVE_MIN = 0.40
@@ -134,9 +138,16 @@ PIXELART_SIZE_MAX = 48.0
 
 RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
 ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono letters', 'Inverted color letters']
-PIXELART_COLOR_MODE_NAMES = ['Full Color', 'Game Boy', 'CGA', 'Phosphor', 'Amber', 'Infrared']
+PIXELART_COLOR_MODE_NAMES = [
+    'Full Color',
+    'Game Boy',
+    'CGA',
+    'Phosphor',
+    'Amber',
+]
 GHOST_COLOR_MODE_NAMES = ['Void', 'Matrix', 'Ghost Cam', 'Neon', 'Thermal', 'Chromatic']
-EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art', 'Signal Ghost']
+RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic B/W', 'Comic Pastel', 'Vibrant Pop']
+EFFECT_MODE_NAMES = ['Rutt-Etra CRT', 'ASCII Cam', 'Pixel Art', 'Signal Ghost', 'Raster Vision']
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
 _quiet_stdin_w = None
@@ -270,21 +281,24 @@ def _color_mode_name():
     if current_effect_mode == 0:   return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]
     if current_effect_mode == 1:   return ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
     if current_effect_mode == 2:   return PIXELART_COLOR_MODE_NAMES[current_pixelart_color_mode]
-    return GHOST_COLOR_MODE_NAMES[current_ghost_color_mode]
+    if current_effect_mode == 3:   return GHOST_COLOR_MODE_NAMES[current_ghost_color_mode]
+    return RASTER_COLOR_MODE_NAMES[current_raster_color_mode]
 
 def _active_color_mode():
     if current_effect_mode == 0:   return current_rutt_color_mode
     if current_effect_mode == 1:   return current_ascii_color_mode
     if current_effect_mode == 2:   return current_pixelart_color_mode
-    return current_ghost_color_mode
+    if current_effect_mode == 3:   return current_ghost_color_mode
+    return current_raster_color_mode
 
 def _set_active_color_mode(mode):
     global current_rutt_color_mode, current_ascii_color_mode
-    global current_pixelart_color_mode, current_ghost_color_mode
+    global current_pixelart_color_mode, current_ghost_color_mode, current_raster_color_mode
     if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
     elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
     elif current_effect_mode == 2: current_pixelart_color_mode    = mode % len(PIXELART_COLOR_MODE_NAMES)
-    else:                          current_ghost_color_mode        = mode % len(GHOST_COLOR_MODE_NAMES)
+    elif current_effect_mode == 3: current_ghost_color_mode        = mode % len(GHOST_COLOR_MODE_NAMES)
+    else:                          current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
@@ -293,8 +307,9 @@ def _cycle_active_color_mode(step):
 def _effect_param_label():
     if current_effect_mode == 0:   return f'[RUTT] Wave {current_rutt_wave:.2f}x'
     if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x'
-    if current_effect_mode == 2:   return f'[PIXEL] Size {int(current_pixelart_size)}px'
-    return f'[GHOST] Density {current_ghost_density:.2f}x'
+    if current_effect_mode == 2:   return f'[PIXEL] Block {int(current_pixelart_size)}px'
+    if current_effect_mode == 3:   return f'[GHOST] Density {current_ghost_density:.2f}x'
+    return f'[RASTER] Dot {int(current_raster_size)}px'
 
 def _toggle_fps_logging():
     global current_show_fps, _fps_last_report_time
@@ -350,6 +365,7 @@ def _print_startup_banner():
           f'{_styled("←→", ANSI_CYAN, bold=True)} wave/density  '
           f'{_styled("Space", ANSI_CYAN, bold=True)} effect  '
           f'{_styled("V", ANSI_CYAN, bold=True)} view  '
+          f'{_styled("M", ANSI_CYAN, bold=True)} mirror  '
           f'{_styled("F", ANSI_CYAN, bold=True)} fps  '
           f'{_styled("Ctrl+C", ANSI_CYAN, bold=True)} quit')
     print(_styled('  ' + '─' * 51, ANSI_DIM))
@@ -383,7 +399,7 @@ def _print_shutdown_banner(reason):
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
     global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density
-    global loc_effect_mode, loc_view_mode, loc_camera_aspect, loc_pixelart_size
+    global loc_effect_mode, loc_view_mode, loc_mirror, loc_camera_aspect, loc_pixelart_size
     global loc_motion_level, loc_presence_scale, loc_presence_cx, loc_presence_cy
 
     loc_color_mode = glsl.glGetUniformLocation(program, b'uColorMode')
@@ -391,6 +407,7 @@ def on_init(program, width, height):
     loc_ascii_density = glsl.glGetUniformLocation(program, b'uAsciiDensity')
     loc_effect_mode = glsl.glGetUniformLocation(program, b'uEffectMode')
     loc_view_mode = glsl.glGetUniformLocation(program, b'uViewMode')
+    loc_mirror = glsl.glGetUniformLocation(program, b'uMirror')
     loc_camera_aspect = glsl.glGetUniformLocation(program, b'uCameraAspect')
     loc_pixelart_size   = glsl.glGetUniformLocation(program, b'uPixelSize')
     loc_motion_level    = glsl.glGetUniformLocation(program, b'uMotionLevel')
@@ -426,10 +443,13 @@ def on_init(program, width, height):
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
     if loc_view_mode >= 0:
         glsl.glUniform1i(loc_view_mode, current_view_mode)
+    if loc_mirror >= 0:
+        glsl.glUniform1i(loc_mirror, current_mirror_view)
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
     if loc_pixelart_size >= 0:
-        glsl.glUniform1f(loc_pixelart_size, c_float(current_pixelart_size))
+        _ps = current_raster_size if current_effect_mode == 4 else current_pixelart_size
+        glsl.glUniform1f(loc_pixelart_size, c_float(_ps))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
     _print_startup_banner()
@@ -455,10 +475,13 @@ def on_render(frame, time):
         glsl.glUniform1i(loc_effect_mode, current_effect_mode)
     if loc_view_mode >= 0:
         glsl.glUniform1i(loc_view_mode, current_view_mode)
+    if loc_mirror >= 0:
+        glsl.glUniform1i(loc_mirror, current_mirror_view)
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
     if loc_pixelart_size >= 0:
-        glsl.glUniform1f(loc_pixelart_size, c_float(current_pixelart_size))
+        _ps = current_raster_size if current_effect_mode == 4 else current_pixelart_size
+        glsl.glUniform1f(loc_pixelart_size, c_float(_ps))
     if loc_motion_level >= 0:
         glsl.glUniform1f(loc_motion_level, c_float(min(_motion_level, 1.0)))
     if loc_presence_scale >= 0:
@@ -531,8 +554,9 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_rutt_wave, current_ascii_density, current_pixelart_size, current_ghost_density
-    global current_effect_mode, current_view_mode, _ctrl_c_requested
+    global current_rutt_wave, current_ascii_density, current_pixelart_size
+    global current_ghost_density, current_raster_size
+    global current_effect_mode, current_view_mode, current_mirror_view, _ctrl_c_requested
     import termios
     try:
         fd = os.open('/dev/tty', os.O_RDONLY)
@@ -568,6 +592,10 @@ def keyboard_thread():
                 current_view_mode = (current_view_mode + 1) % len(VIEW_MODE_NAMES)
                 print(f'\r[VIEW] {VIEW_MODE_NAMES[current_view_mode]}        ')
                 continue
+            if ch in ('m', 'M'):
+                current_mirror_view = 0 if current_mirror_view else 1
+                print(f'\r[MIRROR] {"ON" if current_mirror_view else "OFF"}        ')
+                continue
             if ch == '\x1b':
                 seq = _read_escape_sequence(fd)
                 direction = _decode_arrow(seq)
@@ -582,8 +610,10 @@ def keyboard_thread():
                         current_ascii_density = min(ASCII_DENSITY_MAX, current_ascii_density + ASCII_DENSITY_STEP)
                     elif current_effect_mode == 2:
                         current_pixelart_size = min(PIXELART_SIZE_MAX, current_pixelart_size + PIXELART_SIZE_STEP)
-                    else:
+                    elif current_effect_mode == 3:
                         current_ghost_density = min(GHOST_DENSITY_MAX, current_ghost_density + GHOST_DENSITY_STEP)
+                    else:
+                        current_raster_size = min(PIXELART_SIZE_MAX, current_raster_size + PIXELART_SIZE_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
                     if current_effect_mode == 0:
@@ -592,8 +622,10 @@ def keyboard_thread():
                         current_ascii_density = max(ASCII_DENSITY_MIN, current_ascii_density - ASCII_DENSITY_STEP)
                     elif current_effect_mode == 2:
                         current_pixelart_size = max(PIXELART_SIZE_MIN, current_pixelart_size - PIXELART_SIZE_STEP)
-                    else:
+                    elif current_effect_mode == 3:
                         current_ghost_density = max(GHOST_DENSITY_MIN, current_ghost_density - GHOST_DENSITY_STEP)
+                    else:
+                        current_raster_size = max(PIXELART_SIZE_MIN, current_raster_size - PIXELART_SIZE_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):
                     # Fallback for terminals that emit ESC...F for this key.

@@ -34,7 +34,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ## Effects
 
-Four effects, all in a single shader, switchable live with `Space`:
+Five effects, all in a single shader, switchable live with `Space`:
 
 ### Rutt-Etra CRT
 
@@ -63,7 +63,19 @@ The camera downsampled to a grid of blocks, each rendered as a single pixel of a
 | CGA | Mode 4 Palette 1 hi: black / cyan / magenta / white |
 | Phosphor | P1 green terminal with bloom + CRT vignette |
 | Amber | P3 amber monitor with warm glow + CRT vignette |
-| Infrared | FLIR jet colormap, white-hot at peak luminance |
+
+### Raster Vision
+
+Dedicated halftone/raster effect (separate from Pixel Art): thermal and comic looks rendered as variable-size dots.  
+`←` / `→` controls raster cell size (bigger = fewer/larger dots, smaller = denser dots).
+
+| Mode | Look |
+|---|---|
+| Thermal Raster | Blue-cold / red-hot raster dots |
+| Thermal Inverted | Red-cold / blue-hot raster dots |
+| Comic B/W | Black-ink halftone + edge lines |
+| Comic Pastel | Soft posterized pastel halftone |
+| Vibrant Pop | Saturated comic-print style |
 
 ### Signal Ghost
 
@@ -167,10 +179,11 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 
 | Key | Action |
 |---|---|
-| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost |
+| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost → Raster Vision |
 | `↑` / `↓` | Cycle color mode (per-effect, independent) |
-| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density |
+| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density · Raster: dot size |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |
+| `M` | Toggle horizontal mirror of current view |
 | `F` | Toggle FPS logging to terminal |
 | `Ctrl+C` | Clean shutdown |
 
@@ -196,12 +209,14 @@ On shutdown: clean logo + session stats (duration, estimated frames rendered, av
 | View mode | 16:9 |
 | Rutt color | Prism Warp |
 | ASCII color | Color symbols |
-| Pixel Art color | Full Color |
+| Pixel Art color | Game Boy |
 | Signal Ghost color | Void |
+| Raster Vision color | Thermal Raster |
 | Rutt wave | 0.40 |
 | ASCII density | 3.00 |
-| Pixel block size | 8px |
+| Pixel block size | 16px |
 | Ghost field density | 2.0 |
+| Raster dot size | 12px |
 | FPS baseline | ~20 FPS |
 
 ---
