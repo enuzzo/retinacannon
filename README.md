@@ -34,13 +34,15 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ---
 
-## TL;DR
+### TL;DR
 
-Live Pi camera -> one GLSL shader -> fullscreen on the GPU: no desktop, no bullshit.  
-`Space` cambia effetto (5 totali), frecce regolano live, `V/M/F/S` fanno view/mirror/FPS/screenshot.  
-Lancia `./start_cannon.sh`, inquadra una faccia, ottieni subito arte glitch da salotto.  
-Serve Raspberry Pi + camera + `kms-glsl`; se manca `glsl.so` esplode subito (giustamente).  
-Fine: HDMI + corrente, e sembri uno che l'ha progettato per settimane.
+*(Sprinkled with emojis because let's face it: reading is hard, and a proper TL;DR needs them—kind of like a toddler needing a picture book instead of actual text).*
+
+* 📷 **The Pipeline:** Live Pi Cam → one GLSL Shader → Bare-Metal GPU. No desktop environment, no X11 bloat, zero compositor bullshit. Just pure graphical violence injected straight into the display hardware.
+* ⌨️ **The Controls:** Mash `Space` to cycle through 5 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
+* 🚀 **The Execution:** Run `./start_cannon.sh`, point the lens at a human face, and instantly generate pretentious living-room glitch art.
+* 💥 **The Dependencies:** You need a Raspberry Pi, a camera, and `kms-glsl`. If `glsl.so` is missing, the whole thing violently crashes and burns on launch. As it rightfully should.
+* 🔌 **The Flex:** Plug in HDMI + AC at a party, step back, and let everyone assume you spent six agonizing weeks coding a custom cyber-art installation.
 
 ---
 
