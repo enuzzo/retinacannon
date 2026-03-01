@@ -1006,9 +1006,6 @@ def on_init(program, width, height):
         glsl.glUniform1f(loc_pixelart_size, c_float(_ps))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
-    _print_startup_banner()
-    if _bench_seconds > 0.0:
-        print(f'[BENCH] running effect {_effect_display_name()} ({_subeffect_display_name()}) for {_bench_seconds:.1f}s')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -1271,6 +1268,9 @@ class FakeArgs:
     frames = None
     keyboard = None
 
+_print_startup_banner()
+if _bench_seconds > 0.0:
+    print(f'[BENCH] running effect {_effect_display_name()} ({_subeffect_display_name()}) for {_bench_seconds:.1f}s')
 ret = glsl.init(bytes(args.shader, 'utf-8'), byref(options(FakeArgs())))
 shutdown_reason = 'normal'
 try:

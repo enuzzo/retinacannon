@@ -348,7 +348,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleUVC = safeUV(sampleUV);
     vec3 sampleColC = texture(iChannel0, sampleUVC).rgb;
     float lumaRaw;
-    if (uColorMode == 1) {
+    if (uColorMode == 1 || uColorMode == 3) {
         lumaRaw = getLuma(sampleColC);
     } else if (uColorMode == 2) {
         lumaRaw =
@@ -367,7 +367,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
 
     float waveScale = 1.0;
     if (uColorMode == 2) waveScale = 1.8;
-    else if (uColorMode == 3) waveScale = 3.0;
+    else if (uColorMode == 3) waveScale = 2.0;
     else if (uColorMode == 4) waveScale = 15.0;
     else if (uColorMode == 5) waveScale = 22.0;
     float lineY = normI + luma * (EXTRUSION * uRuttWave * waveScale);
@@ -393,13 +393,12 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         // Phosphor: P31-style green CRT phosphor, luma drives line intensity and glow
         lineCol = vec3(0.04, 0.85 + luma * 0.55, 0.06);
     } else if (uColorMode == 2) {
-        // Amber Trace: forest-green shadows, warm gold highlights — vector display warmth
+        // Amber Trace: forest-green shadows rising to warm gold highlights — vector display warmth
         lineCol = mix(vec3(0.06, 0.62, 0.06), vec3(0.95, 0.82, 0.06), pow(luma, 1.8));
     } else if (uColorMode == 3) {
-        // Scope Burn: animated green-cyan drift bands slowly scrolling across scanlines
-        float drift = 0.50 + 0.50 * sin(normI * 22.0 + iTime * 0.30);
-        lineCol = mix(vec3(0.08, 0.92, 0.10), vec3(0.05, 0.70, 0.88), drift)
-                  * (0.48 + 0.78 * luma);
+        // Scope Burn: electric oscilloscope trace — deep blue to bright cyan-white
+        // Subject silhouette readable through luminance-displaced scan lines (Unknown Pleasures ref)
+        lineCol = mix(vec3(0.05, 0.18, 0.72), vec3(0.55, 0.90, 1.00), pow(luma, 0.8));
     } else if (uColorMode == 4) {
         // Mega Wave: bright multi-sample blend with moving candy ribbons
         vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 2.0 / LINES))).rgb);
@@ -440,14 +439,14 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     color *= scan * grille * mix(0.72, 1.0, vignette);
     color *= 1.34;
     if (uColorMode == 1) color *= 1.12;
-    else if (uColorMode == 2) color *= 1.08;
-    else if (uColorMode == 3) color *= 1.05;
+    else if (uColorMode == 2) color *= 1.10;
+    else if (uColorMode == 3) color *= 1.15;
     else if (uColorMode == 4) color *= 1.18;
     else if (uColorMode == 5) color *= 1.28;
 
-    if (uColorMode >= 3) {
+    if (uColorMode >= 4) {
         float lum = getLuma(color);
-        float sat = (uColorMode == 5) ? 1.70 : ((uColorMode == 4) ? 1.52 : 1.22);
+        float sat = (uColorMode == 5) ? 1.70 : 1.52;
         color = mix(vec3(lum), color, sat);
     }
     color += noise;
