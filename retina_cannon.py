@@ -166,7 +166,7 @@ PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
 
-RUTT_COLOR_MODE_NAMES = ['Wire Mono', 'Analog RGB', 'Prism Warp', 'Acid Melt', 'Mega Wave', 'Prism Surge']
+RUTT_COLOR_MODE_NAMES = ['Wire Mono', 'Phosphor', 'Amber Trace', 'Scope Burn', 'Mega Wave', 'Prism Surge']
 ASCII_COLOR_MODE_NAMES = ['Symbol Color', 'Symbol Mono', 'Dense Mono Mix', 'Dense Color Mix']
 PIXELART_COLOR_MODE_NAMES = ['Pixel Native', 'DMG Classic', 'Toxic Candy']
 PIXELART_MODE_DEFAULT_SIZES = [4.0, 6.0, 8.0]

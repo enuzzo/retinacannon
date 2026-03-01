@@ -115,7 +115,7 @@ On the target Raspberry Pi:
 
 ## Effect color modes
 
-**Rutt-Etra (uEffectMode=0):** Wire Mono · Analog RGB · Prism Warp · Acid Melt · Mega Wave · Prism Surge
+**Rutt-Etra (uEffectMode=0):** Wire Mono · Phosphor · Amber Trace · Scope Burn · Mega Wave · Prism Surge
 
 **ASCII Cam (uEffectMode=1):** Symbol Color · Symbol Mono · Dense Mono Mix · Dense Color Mix
 
@@ -152,7 +152,7 @@ On the target Raspberry Pi:
 
 - **Default view**: 16:9
 - **Default effect**: `00 Rutt-Etra CRT`
-- **Rutt-Etra** color: `00.03 Prism Warp` (index 2)
+- **Rutt-Etra** color: `00.03 Amber Trace` (index 2)
 - **ASCII Cam** color: `01.01 Symbol Color` (index 0), density 3.00
 - **Pixel Art** color: `02.02 DMG Classic` (index 1), block size 6px
 - **Raster Vision** color: `03.01 Thermal Raster` (index 0), dot size 12px

@@ -366,7 +366,8 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float luma = liftShadowLuma(lumaRaw);
 
     float waveScale = 1.0;
-    if (uColorMode == 3) waveScale = 6.8;
+    if (uColorMode == 2) waveScale = 1.8;
+    else if (uColorMode == 3) waveScale = 3.0;
     else if (uColorMode == 4) waveScale = 15.0;
     else if (uColorMode == 5) waveScale = 22.0;
     float lineY = normI + luma * (EXTRUSION * uRuttWave * waveScale);
@@ -378,8 +379,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, baseDist);
     float haze = (1.0 - smoothstep(0.0, LINE_WIDTH * 12.0, dist)) * 0.08 * luma;
     float modeEnergy = 1.0;
-    if (uColorMode == 3) modeEnergy = 1.12;
-    else if (uColorMode == 4) modeEnergy = 1.58;
+    if (uColorMode == 4) modeEnergy = 1.58;
     else if (uColorMode == 5) modeEnergy = 1.84;
     lineAlpha *= modeEnergy;
     glow *= modeEnergy * 1.10;
@@ -390,32 +390,16 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     if (uColorMode == 0) {
         lineCol = vec3(1.08);
     } else if (uColorMode == 1) {
-        lineCol = pow(camColor, vec3(0.82)) * 2.10 + vec3(0.08, 0.07, 0.08);
+        // Phosphor: P31-style green CRT phosphor, luma drives line intensity and glow
+        lineCol = vec3(0.04, 0.85 + luma * 0.55, 0.06);
     } else if (uColorMode == 2) {
-        float shift = 0.0016;
-        float r = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(shift, 0.0))).rgb).r;
-        float g = camColor.g * 1.18;
-        float b = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).rgb).b;
-        vec3 split = vec3(r, g, b) * vec3(1.40, 1.34, 1.48);
-        lineCol = mix(split, camColor * 2.05, 0.46);
+        // Amber Trace: forest-green shadows, warm gold highlights — vector display warmth
+        lineCol = mix(vec3(0.06, 0.62, 0.06), vec3(0.95, 0.82, 0.06), pow(luma, 1.8));
     } else if (uColorMode == 3) {
-        vec2 meltUV = safeUV(sampleUV + vec2(
-            sin((normI + iTime * 0.24) * 10.0),
-            cos((sampleUV.x - iTime * 0.20) * 8.2)
-        ) * 0.0060);
-        vec3 melt = liftShadows(texture(iChannel0, meltUV).rgb);
-        vec3 candy = vec3(
-            0.5 + 0.5 * sin(iTime * 1.10 + normI * 16.0),
-            0.5 + 0.5 * sin(iTime * 1.24 + sampleUV.x * 13.0 + 2.094),
-            0.5 + 0.5 * sin(iTime * 1.38 + (normI + sampleUV.x) * 14.0 + 4.188)
-        );
-        vec3 acid = vec3(
-            melt.g * 1.62 + melt.b * 0.48,
-            melt.b * 1.46 + melt.r * 0.42,
-            melt.r * 1.56 + melt.g * 0.44
-        );
-        vec3 wild = mix(acid * 1.22, candy * 1.64, 0.30);
-        lineCol = mix(wild, camColor * 2.08, 0.62) + vec3(0.05, 0.04, 0.06);
+        // Scope Burn: animated green-cyan drift bands slowly scrolling across scanlines
+        float drift = 0.50 + 0.50 * sin(normI * 22.0 + iTime * 0.30);
+        lineCol = mix(vec3(0.08, 0.92, 0.10), vec3(0.05, 0.70, 0.88), drift)
+                  * (0.48 + 0.78 * luma);
     } else if (uColorMode == 4) {
         // Mega Wave: bright multi-sample blend with moving candy ribbons
         vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 2.0 / LINES))).rgb);
