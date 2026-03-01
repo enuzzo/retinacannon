@@ -75,9 +75,9 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
 |---|---|---|---|---|
 | 00.01 | Wire Mono | B/W | Classic white scanline wireframe on black background. | White, black |
-| 00.02 | Analog RGB | Colors | Camera-faithful colored scanlines with analog CRT feel. | Natural RGB, skin tones |
-| 00.03 | Prism Warp | Prism Warp | RGB split with subtle chromatic aberration. | Cyan, magenta, blue |
-| 00.04 | Acid Melt | Acid Melt | Psychedelic melt with stronger displacement and swirl. | Lime, magenta, electric blue |
+| 00.02 | Analog RGB | Colors | Bright analog RGB scanlines with higher midtone visibility. | Natural RGB, warm highlights |
+| 00.03 | Prism Warp | Prism Warp | Balanced RGB split plus moderate warp, with subject preserved. | Cyan, magenta, blue |
+| 00.04 | Acid Melt | Acid Melt | Candy-acid melt with strong warp while keeping the subject readable. | Lime, magenta, electric blue |
 | 00.05 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
 | 00.06 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
 
@@ -154,16 +154,21 @@ In 1973, [Bill Rutt and Steve Etra](https://en.wikipedia.org/wiki/Rutt/Etra_Vide
 
 This is the same thing. In GLSL. On a $40 computer. Running at 20 FPS.
 
-Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field. The last three color modes crank the displacement to genuinely unreasonable levels.
+Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field. Higher modes progressively increase displacement, with 00.05 and 00.06 intentionally extreme.
+
+Latest tuning snapshot (March 1, 2026):
+- 00.01 Wire Mono is intentionally locked.
+- 00.05 Mega Wave and 00.06 Prism Surge are approved as final look.
+- 00.02, 00.03, 00.04 were rebalanced for visibility and stability (less dark/muddy output, subject kept readable).
 
 | Mode | Look |
 |---|---|
 | Wire Mono | Classic white scan lines on black |
-| Analog RGB | Camera-accurate color per scan line |
-| Prism Warp | RGB channel split — subtle chromatic aberration |
-| Acid Melt | Swirling color melt, channel-shifted BGRs — ×6 displacement |
-| Mega Wave | Analog RGB mode blurred across neighboring scans — ×10 displacement |
-| Prism Surge | Prism Warp with extreme channel separation — ×14 displacement |
+| Analog RGB | Bright analog color scan lines with improved midtone lift |
+| Prism Warp | RGB split with moderate warp and cleaner subject read |
+| Acid Melt | Candy-acid melt with visible subject and controlled chaos |
+| Mega Wave | Ultra-bright displaced blend with moving candy ribbons (extreme) |
+| Prism Surge | Maximum prism split and high-energy distortion (extreme) |
 
 ### ASCII Cam
 

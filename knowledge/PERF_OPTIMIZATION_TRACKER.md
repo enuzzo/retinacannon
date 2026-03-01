@@ -115,6 +115,31 @@ timeout 35s env RETINA_BENCH_SECONDS=10 RETINA_BENCH_EFFECT=0 python3 retina_can
 - Instant FPS line in first seconds can spike due smoothing warm-up; use `BENCH_RESULT` as canonical value.
 - Terminal banner noise is high; always parse by `BENCH_RESULT`.
 
+### Visual Tuning Log (March 1, 2026)
+This subsection tracks qualitative look-tuning for Effect 00, separate from strict FPS optimization.
+
+| Step | Commit | Target | What was changed | Outcome |
+|---|---|---|---|---|
+| 1 | `6a56873` | 00.03-00.06 | Strong candy palettes, heavy warp, high energy/displacement. | Over-tuned for 00.02/00.03/00.04 from operator feedback; 00.05/00.06 approved. |
+| 2 | `7de10b3` | 00.02-00.04 | Rebalanced brightness/subject visibility and reduced costly or excessive distortion in earlier sub-modes. | Stabilized readability while keeping style; 00.01/00.05/00.06 intentionally untouched. |
+
+Operator feedback snapshot after step 1:
+- 00.01: perfect, do not change.
+- 00.02: too dark/heavy and perceived as slow.
+- 00.03: poor visual quality.
+- 00.04: subject not visible (warp dominates).
+- 00.05 and 00.06: perfect.
+
+Hotfix strategy applied in step 2:
+- 00.02 Analog RGB: lighter distortion amplitude, brighter midtones, simpler luma path.
+- 00.03 Prism Warp: reduced warp amplitude, stronger camera-color blend to keep the subject readable.
+- 00.04 Acid Melt: preserved subject visibility while keeping an aggressive melt identity.
+- 00.01, 00.05, 00.06: unchanged by design.
+
+Evidence logs for this visual pass:
+- `/tmp/retina_rutt_rework_smoke.log`
+- `/tmp/retina_rutt_hotfix_smoke.log`
+
 ## Resume Checklist (for any AI)
 1. Pick next pending ID from `Performance Register`.
 2. Run baseline command with `RETINA_BENCH_EFFECT=<ID>`.
