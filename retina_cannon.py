@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, glob, threading, select, termios, signal, subprocess, random, math, shutil
+import sys, os, re, glob, threading, select, termios, signal, subprocess, random, math, shutil
 from ctypes import CFUNCTYPE, c_uint, c_uint64, c_float, byref
 from pathlib import Path
 from datetime import datetime
@@ -119,9 +119,7 @@ current_ascii_color_mode = 0
 current_pixelart_color_mode = 1
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
-current_pixelart_size = 16.0
-current_ghost_color_mode = 0
-current_ghost_density = 2.0
+current_pixelart_size = 6.0
 current_raster_color_mode = 0
 current_raster_size = 12.0
 current_datamosh_color_mode = 0
@@ -129,10 +127,7 @@ current_vhsburn_color_mode = 0
 current_poster_color_mode = 0
 current_datamosh_amount = 2.0
 current_vhs_tracking = 1.5
-current_poster_levels = 5.0
-GHOST_DENSITY_STEP = 0.25
-GHOST_DENSITY_MIN = 0.5
-GHOST_DENSITY_MAX = 5.0
+current_poster_levels = 4.0
 DATAMOSH_AMOUNT_STEP = 0.25
 DATAMOSH_AMOUNT_MIN = 0.5
 DATAMOSH_AMOUNT_MAX = 6.0
@@ -156,27 +151,20 @@ PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
 
-RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt']
-ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Inverted mono letters', 'Inverted color letters']
-PIXELART_COLOR_MODE_NAMES = [
-    'Full Color',
-    'Game Boy',
-    'CMYK Melt',
-    'Toxic Candy',
-]
-PIXELART_MODE_DEFAULT_SIZES = [12.0, 16.0, 22.0, 8.0]
-GHOST_COLOR_MODE_NAMES = ['Void', 'Matrix', 'Ghost Cam', 'Neon', 'Thermal', 'Chromatic']
+RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt', 'Mega Wave', 'Prism Surge']
+ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Dense Mono Mix', 'Dense Color Mix']
+PIXELART_COLOR_MODE_NAMES = ['Full Color', 'Game Boy', 'Toxic Candy']
+PIXELART_MODE_DEFAULT_SIZES = [4.0, 6.0, 8.0]
 RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic B/W', 'Comic Pastel', 'Vibrant Pop']
-DATAMOSH_COLOR_MODE_NAMES = ['Trails']
-VHSBURN_COLOR_MODE_NAMES = ['Tracking Burn']
-POSTER_COLOR_MODE_NAMES = ['Comic Glitch']
+DATAMOSH_COLOR_MODE_NAMES = ['RGB Mosh', 'Thermal Glitch', 'Acid Trip', 'Void Codec']
+VHSBURN_COLOR_MODE_NAMES  = ['Signal Melt', 'Night Tape']
+POSTER_COLOR_MODE_NAMES   = ['Warhol Pop', 'Neon Cel', 'Acid Bloom', 'Plasma Burn']
 EFFECT_MODE_NAMES = [
     'Rutt-Etra CRT',
     'ASCII Cam',
     'Pixel Art',
-    'Signal Ghost',
     'Raster Vision',
-    'Datamosh Trails',
+    'Digital Codec Corruption',
     'VHS Tracking Burn',
     'Posterize Glitch Comic',
 ]
@@ -203,49 +191,49 @@ SHOT_COUNTDOWN_SEC = 3.0
 _splash_seconds = 5
 
 _BOOT_LINES = [
-    'Tracking lock acquired. Keep your face in frame and pretend this was planned.',
-    'Analog ghosts detected. Digitizing in 3...2...none.',
-    'Signal aligned. Distortion budget approved.',
-    'No menu. No mercy. Just shaders.',
-    'Tape hiss at nominal level. Visual noise online.',
-    'Bootleg aesthetics engaged. Copyright lawyers asleep.',
-    'CRT mood loaded. Reality set to unstable.',
-    'Luma channel hungry. Feed it movement.',
-    'Scanlines warming up. Please remain dramatic.',
-    'Camera armed. Ego unarmed.',
-    'Broadcast override accepted. Party standards lowered.',
-    'Late-night lab protocol active. Keep lights ugly.',
-    'Vector fever rising. Stay in the blast radius.',
-    'Old-school pixels, new-school attitude.',
-    'Magnetic tape vibes: immaculate. Sync pulse: feral.',
-    'Raster lock achieved. Proceed with chaos.',
-    'Warez soul, museum output.',
-    'Frame pipeline hot. Art excuses ready.',
-    'Underground TV station online.',
-    'Unauthorized beauty mode enabled.',
+    'GREETINGS TO: everyone who knows why the tracker crashed at 4AM. you know who you are.',
+    'WARNING: side effects include compulsive pixel-staring and unexplained nostalgia for hardware you never owned.',
+    'THIS RELEASE IS DEDICATED TO: the scene. the noise. the ones who stayed up until the display burned in.',
+    'USE OF THIS SOFTWARE IMPLIES ACCEPTANCE OF: aesthetic chaos, raster bliss, and at least one accidental screenshot.',
+    'CODED IN: a fever dream of OpenGL ES, Python, and unreasonable ambition.',
+    'NO PROTECTION APPLIED. NO PROTECTION NEEDED. BEAUTY IS ITS OWN CRACK.',
+    'ATTENTION: your retinas are about to be held hostage by a Raspberry Pi. resistance is futile.',
+    'THE TRACKER IS FULL. THE PARTY IS OVER. THE CANNON IS JUST WARMING UP.',
+    'THIS IS NOT ART. THIS IS NOT TECH. THIS IS THE SPACE IN BETWEEN WHERE THE GOOD STUFF LIVES.',
+    'PIXEL CLOCK: LOCKED. SYNC: STABLE. VIBE: ILLEGAL.',
+    'DO NOT ADJUST YOUR MONITOR. THIS IS INTENTIONAL. ALL OF IT.',
+    'IF YOU CAN READ THIS THE SHADER COMPILED. AGAINST ALL ODDS.',
+    'SCENE RULE #1: it\'s not broken if it looks like that on purpose.',
+    'SOME EFFECTS MAY CAUSE INVOLUNTARY AWE. NETMILK ACCEPTS NO LIABILITY.',
+    'ESTIMATED TIME TO OBSESSION: 4 minutes. estimated time to explaining this to someone: never.',
+    'REAL-TIME. NO PRERENDER. NO TRICKS. JUST THE GPU AND YOUR FACE.',
+    'THE COPPER BARS HAVE BEEN REPLACED BY CAMERA SHADERS. THE VIBE REMAINS.',
+    'YOU ARE NOW LOOKING AT YOURSELF THROUGH A LENS GROUND FROM PURE MATHEMATICS.',
+    'BOOTING. PLEASE HOLD. THE DEMO DOES NOT CARE ABOUT YOUR SCHEDULE.',
+    'SIGNAL ACQUIRED. IDENTITY OPTIONAL. DISTORTION MANDATORY.',
 ]
 
 _SHUTDOWN_LINES = [
-    'Target lost. Rewind the tape and try again.',
-    'Signal dropped. Night shift over.',
-    'Transmission cut. Keep the noise alive.',
-    'Raster collapsed. Good chaos session.',
-    'Camera cool-down initiated. VHS dreams pending.',
-    'Broadcast ended. Applause optional.',
-    'Shutdown clean. Scene still illegal.',
-    'No survivors, only screenshots.',
-    'Tape ejected. Mood preserved.',
-    'Visual feed terminated. Memories corrupted.',
-    'Sync pulse gone. Heartbeat remains.',
-    'End of transmission. Stay weird.',
-    'Static wins tonight.',
-    'Render lights out. See you in the next glitch.',
-    'The cannon sleeps. The ghosts do not.',
-    'Party closed. Artifact levels still critical.',
-    'Output muted. Legend inflated.',
-    'Video noise archived. Reality restored.',
-    'Good hunt. Bring more faces next run.',
-    'Channel closed. Keep it underground.',
+    'DRM master released. Monitor returned to the void.',
+    'Process terminated. The noise continues without you.',
+    'Raster offline. The copper bars are cooling down.',
+    'Signal lost. This was not a malfunction.',
+    'Cannon silent. Memory of the glitch persists.',
+    'Session closed. Your face has been returned to meatspace.',
+    'Fade to black. Professional hazard.',
+    'Transmission ended. The tracker was full anyway.',
+    'Shutdown clean. Artifacts were saved to disk.',
+    'GL context destroyed. Good session. Do not tell anyone how long you stared.',
+    'The demo ends. The party does not.',
+    'Pipe closed. Stdin reclaimed. Dignity optional.',
+    'Exit code 0. The only clean thing about this.',
+    'All threads joined. All ghosts released.',
+    'Camera stopped. The pixel grid goes dark.',
+    'Framebuffer cleared. Scene credits roll in your head.',
+    'Until next run — keep the toolchain ugly and the output beautiful.',
+    'The cannon sleeps. Reload when ready.',
+    'Memory free. VRAM free. Mind: questionable.',
+    'Grüße an alle. Tschüss.',
 ]
 
 _BLOCK_CHARS = '░▒▓█▓▒░'
@@ -278,6 +266,18 @@ ANSI_VHS_RAINBOW = [
     '\033[38;5;45m',   # aqua
     '\033[38;5;201m',  # neon magenta
 ]
+
+# NFO/warez splash colors
+ANSI_ELEC_CYAN    = '\033[38;5;39m'   # electric cyan — box borders
+ANSI_BRIGHT_GREEN = '\033[38;5;46m'   # bright green  — [OK] + bar fill
+ANSI_DARK_GRAY    = '\033[38;5;237m'  # dark gray     — bar empty
+ANSI_CYAN_DIM     = '\033[36m'        # cyan dim      — metadata labels
+
+_ANSI_STRIP_RE = re.compile(r'\033\[[0-9;]*m')
+
+def _visible_len(s):
+    """Return printable length of a string (strip ANSI codes)."""
+    return len(_ANSI_STRIP_RE.sub('', s))
 
 RETINA_CANNON_ASCII = [
     '__________        __  .__                _________                                     ',
@@ -495,39 +495,141 @@ def _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, pha
     _print_centered_lolcat_line(quote, cols, fallback_color=ANSI_CYAN, dim=True)
     print()
 
+# ── NFO/warez box helpers ────────────────────────────────────────────────────
+
+def _nfo_top(box_w):
+    return _styled('╔' + '═' * (box_w - 2) + '╗', ANSI_ELEC_CYAN, bold=True)
+
+def _nfo_sep(box_w):
+    return _styled('╠' + '═' * (box_w - 2) + '╣', ANSI_ELEC_CYAN, bold=True)
+
+def _nfo_bot(box_w):
+    return _styled('╚' + '═' * (box_w - 2) + '╝', ANSI_ELEC_CYAN, bold=True)
+
+def _nfo_box_line(content, box_w):
+    """Wrap a content string (may contain ANSI) in ║ … ║, padding to box_w."""
+    inner_w = box_w - 4  # 2 border chars + 2 space margins
+    vis = _visible_len(content)
+    pad = max(0, inner_w - vis)
+    wall = _styled('║', ANSI_ELEC_CYAN, bold=True)
+    return wall + ' ' + content + ' ' * pad + ' ' + wall
+
+def _nfo_meta_line(la, va, lb, vb, box_w):
+    """Two-column metadata row: LA : VA     LB : VB"""
+    sep = _styled(' : ', ANSI_DIM)
+    left  = _styled(la, ANSI_CYAN_DIM) + sep + _styled(va, ANSI_WHITE, bold=True)
+    right = _styled(lb, ANSI_CYAN_DIM) + sep + _styled(vb, ANSI_WHITE, bold=True)
+    inner_w = box_w - 4
+    gap = max(1, inner_w - _visible_len(left) - _visible_len(right))
+    return _nfo_box_line(left + ' ' * gap + right, box_w)
+
+def _nfo_status_line(label, box_w):
+    """>> label .........[OK]"""
+    ok     = _styled('[OK]', ANSI_BRIGHT_GREEN, bold=True)
+    prefix = _styled('>>', ANSI_YELLOW) + ' ' + _styled(label, ANSI_WHITE) + ' '
+    inner_w = box_w - 4
+    dots = max(1, inner_w - _visible_len(prefix) - _visible_len(ok))
+    return _nfo_box_line(prefix + _styled('.' * dots, ANSI_DIM) + ok, box_w)
+
+def _nfo_progress_line(n, max_n, cols):
+    """LAUNCHING IN N  ████░░░ — returned as string for \\r rewrite."""
+    label  = _styled(f'  LAUNCHING IN {n}  ', ANSI_YELLOW, bold=True)
+    bar_w  = max(10, cols - _visible_len(label) - 4)
+    filled = round(bar_w * (max_n - n) / max(max_n, 1))
+    empty  = bar_w - filled
+    bar = _styled('█' * filled, ANSI_BRIGHT_GREEN) + _styled('░' * empty, ANSI_DARK_GRAY)
+    return label + bar
+
+def _print_nfo_static(box_w, cols):
+    """Print the static NFO box — title lives above, quote lives below (caller handles it)."""
+    margin = ' ' * max(0, (cols - box_w) // 2)
+
+    def pline(s):
+        print(margin + s)
+
+    # Box: top → 3 meta rows → sep → 5 status rows → bot
+    pline(_nfo_top(box_w))
+
+    pline(_nfo_meta_line('GRP',  'Netmilk Studio sagl',        'REL',  'v3.0 [FINAL]',                       box_w))
+    pline(_nfo_meta_line('TYPE', 'Realtime GLSL Engine',        'DATE', datetime.now().strftime('%Y-%m-%d'),   box_w))
+    pline(_nfo_meta_line('PLAT', 'Raspberry Pi / kms-glsl',     'EFXS', f'{len(EFFECT_MODE_NAMES)} x .frag',  box_w))
+
+    pline(_nfo_sep(box_w))
+
+    pline(_nfo_status_line('Acquiring DRM master',               box_w))
+    pline(_nfo_status_line('Loading GLSL pipeline',              box_w))
+    pline(_nfo_status_line(f'Calibrating Pi camera ({CAM_W}\u00d7{CAM_H})', box_w))
+    pline(_nfo_status_line('Motion detection warmup',            box_w))
+    pline(_nfo_status_line('Keyboard controller ready',          box_w))
+
+    pline(_nfo_bot(box_w))
+
 def _print_vhs_splash(countdown_seconds):
     cols, rows = _term_size()
-    title = _figlet_title_lines(max_width=max(16, cols - 2))
-    credit_a = 'Netmilk Studio sagl'
-    credit_b = 'Retina Cannon // VHS night build'
+
+    # Narrow terminal fallback → centered old-style splash
+    if cols < 56:
+        title = _figlet_title_lines(max_width=max(16, cols - 2))
+        quote = random.choice(_BOOT_LINES)
+        base = '\n' * max((rows - len(title) - 5) // 2, 1)
+        _print_static_splash_frame(title, cols, base, 'Netmilk Studio sagl',
+                                   'Retina Cannon', quote, 12)
+        if countdown_seconds >= 0:
+            start = max(1, int(countdown_seconds))
+            for n in range(start, -1, -1):
+                print('\r' + _countdown_progress_line(n, start, cols) + '\033[K',
+                      end='', flush=True)
+                time.sleep(1.0)
+            print()
+        _clear_to_black()
+        _show_cursor()
+        return
+
+    # Wide terminal: figlet title FULL WIDTH above box, not inside
+    box_w = min(cols, 80)
+    title = _figlet_title_lines(max_width=cols)   # full terminal width
     quote = random.choice(_BOOT_LINES)
 
-    text_h = len(title) + 5
-    top_pad = max((rows - text_h) // 2, 1)
-    base = '\n' * top_pad
+    title_h = len(title)
+    # box=11, blank_above_quote=1, quote=1, blank_below_quote=1, countdown=1
+    content_h = title_h + 1 + 11 + 1 + 1 + 1 + 1
+    top_pad = max(1, (rows - content_h) // 2)
 
-    # Single stable frame: no flashing during pre-countdown.
-    _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, 12)
+    _clear_to_black()
+    print('\n' * top_pad, end='')
+    _print_centered_title(title, cols)
+    print()
+    _print_nfo_static(box_w, cols)
+
+    # Centered quote — glows from dark gray to bright white
+    quote_short = quote[:cols - 4] if len(quote) > cols - 4 else quote
+    centered_q = _center_text_line('\u201c' + quote_short + '\u201d', cols)
+    _glow = ['\033[38;5;238m', '\033[38;5;243m', '\033[38;5;248m', '\033[38;5;253m', '\033[1;97m']
+    print()   # blank line above quote
+    print(_glow[0] + centered_q + ANSI_RESET, flush=True)
+    for _gc in _glow[1:]:
+        time.sleep(0.08)
+        print('\033[1A\r' + _gc + centered_q + ANSI_RESET + '\033[K', flush=True)
+    print()   # blank line below quote (spacing before countdown)
 
     if countdown_seconds < 0:
-        _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, 12)
-        print(_styled(_center_text_line('[HOLD] Press any key to SHOOT', cols), ANSI_YELLOW, bold=True))
+        print(_styled('  >> HOLD — press any key to continue', ANSI_YELLOW, bold=True))
         _wait_splash_release()
     else:
         start = max(1, int(countdown_seconds))
-        _print_static_splash_frame(title, cols, base, credit_a, credit_b, quote, 12)
+        bar_w = min(cols * 30 // 100, 40)
         for n in range(start, -1, -1):
-            print('\r' + _countdown_progress_line(n, start, cols) + '\033[K', end='', flush=True)
+            label = f'LAUNCHING IN {n} '
+            filled = round(bar_w * (start - n) / max(start, 1))
+            empty = bar_w - filled
+            bar_str = _styled('█' * filled, ANSI_BRIGHT_GREEN) + _styled('░' * empty, ANSI_DARK_GRAY)
+            content_str = _styled(label, ANSI_YELLOW, bold=True) + bar_str
+            content_vis_w = len(label) + bar_w
+            margin = ' ' * max(0, (cols - content_vis_w) // 2)
+            print('\r' + margin + content_str + '\033[K', end='', flush=True)
             time.sleep(1.0)
         print()
 
-    _clear_to_black()
-    print(base, end='')
-    _print_centered_title(title, cols, phase=14)
-    print()
-    print(_styled(_center_text_line(credit_a, cols), ANSI_WHITE, dim=True))
-    print(_styled(_center_text_line('SHOOTING', cols), ANSI_RED, bold=True))
-    time.sleep(0.45)
     _clear_to_black()
     _show_cursor()
 
@@ -568,36 +670,32 @@ def _color_mode_name():
     if current_effect_mode == 0:   return RUTT_COLOR_MODE_NAMES[current_rutt_color_mode]
     if current_effect_mode == 1:   return ASCII_COLOR_MODE_NAMES[current_ascii_color_mode]
     if current_effect_mode == 2:   return PIXELART_COLOR_MODE_NAMES[current_pixelart_color_mode]
-    if current_effect_mode == 3:   return GHOST_COLOR_MODE_NAMES[current_ghost_color_mode]
-    if current_effect_mode == 4:   return RASTER_COLOR_MODE_NAMES[current_raster_color_mode]
-    if current_effect_mode == 5:   return DATAMOSH_COLOR_MODE_NAMES[current_datamosh_color_mode]
-    if current_effect_mode == 6:   return VHSBURN_COLOR_MODE_NAMES[current_vhsburn_color_mode]
+    if current_effect_mode == 3:   return RASTER_COLOR_MODE_NAMES[current_raster_color_mode]
+    if current_effect_mode == 4:   return DATAMOSH_COLOR_MODE_NAMES[current_datamosh_color_mode]
+    if current_effect_mode == 5:   return VHSBURN_COLOR_MODE_NAMES[current_vhsburn_color_mode]
     return POSTER_COLOR_MODE_NAMES[current_poster_color_mode]
 
 def _active_color_mode():
     if current_effect_mode == 0:   return current_rutt_color_mode
     if current_effect_mode == 1:   return current_ascii_color_mode
     if current_effect_mode == 2:   return current_pixelart_color_mode
-    if current_effect_mode == 3:   return current_ghost_color_mode
-    if current_effect_mode == 4:   return current_raster_color_mode
-    if current_effect_mode == 5:   return current_datamosh_color_mode
-    if current_effect_mode == 6:   return current_vhsburn_color_mode
+    if current_effect_mode == 3:   return current_raster_color_mode
+    if current_effect_mode == 4:   return current_datamosh_color_mode
+    if current_effect_mode == 5:   return current_vhsburn_color_mode
     return current_poster_color_mode
 
 def _set_active_color_mode(mode):
     global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_size
-    global current_pixelart_color_mode, current_ghost_color_mode, current_raster_color_mode
+    global current_pixelart_color_mode, current_raster_color_mode
     global current_datamosh_color_mode, current_vhsburn_color_mode, current_poster_color_mode
     if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
     elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
     elif current_effect_mode == 2:
         current_pixelart_color_mode = mode % len(PIXELART_COLOR_MODE_NAMES)
-        # Give each pixel preset a useful default block size while keeping live tweak on arrows.
         current_pixelart_size = PIXELART_MODE_DEFAULT_SIZES[current_pixelart_color_mode]
-    elif current_effect_mode == 3: current_ghost_color_mode        = mode % len(GHOST_COLOR_MODE_NAMES)
-    elif current_effect_mode == 4: current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
-    elif current_effect_mode == 5: current_datamosh_color_mode     = mode % len(DATAMOSH_COLOR_MODE_NAMES)
-    elif current_effect_mode == 6: current_vhsburn_color_mode      = mode % len(VHSBURN_COLOR_MODE_NAMES)
+    elif current_effect_mode == 3: current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
+    elif current_effect_mode == 4: current_datamosh_color_mode     = mode % len(DATAMOSH_COLOR_MODE_NAMES)
+    elif current_effect_mode == 5: current_vhsburn_color_mode      = mode % len(VHSBURN_COLOR_MODE_NAMES)
     else:                          current_poster_color_mode       = mode % len(POSTER_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
@@ -608,10 +706,9 @@ def _effect_param_label():
     if current_effect_mode == 0:   return f'[RUTT] Wave {current_rutt_wave:.2f}x'
     if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x'
     if current_effect_mode == 2:   return f'[PIXEL] Block {int(current_pixelart_size)}px'
-    if current_effect_mode == 3:   return f'[GHOST] Density {current_ghost_density:.2f}x'
-    if current_effect_mode == 4:   return f'[RASTER] Dot {int(current_raster_size)}px'
-    if current_effect_mode == 5:   return f'[DATAMOSH] Amount {current_datamosh_amount:.2f}x'
-    if current_effect_mode == 6:   return f'[VHS] Tracking {current_vhs_tracking:.2f}x'
+    if current_effect_mode == 3:   return f'[RASTER] Dot {int(current_raster_size)}px'
+    if current_effect_mode == 4:   return f'[CODEC] Amount {current_datamosh_amount:.2f}x'
+    if current_effect_mode == 5:   return f'[VHS] Tracking {current_vhs_tracking:.2f}x'
     return f'[POSTER] Levels {int(current_poster_levels)}'
 
 def _slugify(text):
@@ -757,13 +854,20 @@ def _print_shutdown_banner(reason):
         print()
 
     line = random.choice(_SHUTDOWN_LINES)
+    colored_line = _lolcat_colorize(line + '\n')
+    def _print_shutdown_line(bullet_color):
+        bullet = _styled('▶', bullet_color, bold=True)
+        if colored_line is not None:
+            print(f'  {bullet} {colored_line}', end='')
+        else:
+            print(f'  {bullet} {_styled(line, ANSI_WHITE, bold=True)}')
     if reason.startswith('init_error') or reason.startswith('run_error'):
         print(f'  {_styled("▶", ANSI_RED, bold=True)} {_styled(f"Renderer error: {reason}", ANSI_RED)}')
-        print(f'  {_styled("▶", ANSI_MAGENTA, bold=True)} {_styled(line, ANSI_WHITE)}')
+        _print_shutdown_line(ANSI_MAGENTA)
     elif reason in ('ctrl_c', 'signal'):
-        print(f'  {_styled("▶", ANSI_CYAN, bold=True)} {_styled(line, ANSI_WHITE)}')
+        _print_shutdown_line(ANSI_CYAN)
     else:
-        print(f'  {_styled("▶", ANSI_GREEN, bold=True)} {_styled(line, ANSI_WHITE)}')
+        _print_shutdown_line(ANSI_GREEN)
 
     print(_styled('  ' + '─' * 51, ANSI_DIM))
     print()
@@ -824,7 +928,7 @@ def on_init(program, width, height):
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
     if loc_pixelart_size >= 0:
-        _ps = current_raster_size if current_effect_mode == 4 else current_pixelart_size
+        _ps = current_raster_size if current_effect_mode == 3 else current_pixelart_size
         glsl.glUniform1f(loc_pixelart_size, c_float(_ps))
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
@@ -845,13 +949,11 @@ def on_render(frame, time):
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
-        if current_effect_mode == 3:
-            _d = current_ghost_density
-        elif current_effect_mode == 5:
+        if current_effect_mode == 4:
             _d = current_datamosh_amount
-        elif current_effect_mode == 6:
+        elif current_effect_mode == 5:
             _d = current_vhs_tracking
-        elif current_effect_mode == 7:
+        elif current_effect_mode == 6:
             _d = current_poster_levels
         else:
             _d = current_ascii_density
@@ -865,7 +967,7 @@ def on_render(frame, time):
     if loc_camera_aspect >= 0:
         glsl.glUniform1f(loc_camera_aspect, c_float(CAM_W / CAM_H))
     if loc_pixelart_size >= 0:
-        _ps = current_raster_size if current_effect_mode == 4 else current_pixelart_size
+        _ps = current_raster_size if current_effect_mode == 3 else current_pixelart_size
         glsl.glUniform1f(loc_pixelart_size, c_float(_ps))
     if loc_motion_level >= 0:
         glsl.glUniform1f(loc_motion_level, c_float(min(_motion_level, 1.0)))
@@ -941,7 +1043,7 @@ def _decode_arrow(seq):
 
 def keyboard_thread():
     global current_rutt_wave, current_ascii_density, current_pixelart_size
-    global current_ghost_density, current_raster_size
+    global current_raster_size
     global current_datamosh_amount, current_vhs_tracking, current_poster_levels
     global current_effect_mode, current_view_mode, current_mirror_view, _ctrl_c_requested
     global _shot_deadline, _shot_last_seconds
@@ -1004,14 +1106,12 @@ def keyboard_thread():
                     elif current_effect_mode == 2:
                         current_pixelart_size = min(PIXELART_SIZE_MAX, current_pixelart_size + PIXELART_SIZE_STEP)
                     elif current_effect_mode == 3:
-                        current_ghost_density = min(GHOST_DENSITY_MAX, current_ghost_density + GHOST_DENSITY_STEP)
-                    elif current_effect_mode == 4:
                         current_raster_size = min(PIXELART_SIZE_MAX, current_raster_size + PIXELART_SIZE_STEP)
-                    elif current_effect_mode == 5:
+                    elif current_effect_mode == 4:
                         current_datamosh_amount = min(DATAMOSH_AMOUNT_MAX, current_datamosh_amount + DATAMOSH_AMOUNT_STEP)
-                    elif current_effect_mode == 6:
+                    elif current_effect_mode == 5:
                         current_vhs_tracking = min(VHS_TRACK_MAX, current_vhs_tracking + VHS_TRACK_STEP)
-                    else:
+                    elif current_effect_mode == 6:
                         current_poster_levels = min(POSTER_LEVEL_MAX, current_poster_levels + POSTER_LEVEL_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
@@ -1022,14 +1122,12 @@ def keyboard_thread():
                     elif current_effect_mode == 2:
                         current_pixelart_size = max(PIXELART_SIZE_MIN, current_pixelart_size - PIXELART_SIZE_STEP)
                     elif current_effect_mode == 3:
-                        current_ghost_density = max(GHOST_DENSITY_MIN, current_ghost_density - GHOST_DENSITY_STEP)
-                    elif current_effect_mode == 4:
                         current_raster_size = max(PIXELART_SIZE_MIN, current_raster_size - PIXELART_SIZE_STEP)
-                    elif current_effect_mode == 5:
+                    elif current_effect_mode == 4:
                         current_datamosh_amount = max(DATAMOSH_AMOUNT_MIN, current_datamosh_amount - DATAMOSH_AMOUNT_STEP)
-                    elif current_effect_mode == 6:
+                    elif current_effect_mode == 5:
                         current_vhs_tracking = max(VHS_TRACK_MIN, current_vhs_tracking - VHS_TRACK_STEP)
-                    else:
+                    elif current_effect_mode == 6:
                         current_poster_levels = max(POSTER_LEVEL_MIN, current_poster_levels - POSTER_LEVEL_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):

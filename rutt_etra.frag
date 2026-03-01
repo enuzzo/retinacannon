@@ -320,7 +320,11 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb) * 0.1;
     float luma = liftShadowLuma(lumaRaw);
 
-    float lineY = normI + luma * (EXTRUSION * uRuttWave);
+    float waveScale = 1.0;
+    if (uColorMode == 3) waveScale = 6.0;
+    else if (uColorMode == 4) waveScale = 10.0;
+    else if (uColorMode == 5) waveScale = 14.0;
+    float lineY = normI + luma * (EXTRUSION * uRuttWave * waveScale);
     float dist = abs(sampleBase.y - lineY);
     float baseDist = abs(sampleBase.y - normI);
 
@@ -341,7 +345,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         float g = camColor.g;
         float b = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).rgb).b;
         lineCol = vec3(r, g, b) * vec3(1.65, 1.18, 1.72);
-    } else {
+    } else if (uColorMode == 3) {
         vec2 slowUV = safeUV(sampleUV + vec2(
             sin((normI + iTime * 0.11) * 7.5),
             cos((sampleUV.x - iTime * 0.09) * 6.2)
@@ -352,6 +356,17 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
             melt.g * 1.08 + melt.b * 0.15,
             melt.b * 1.40 + melt.r * 0.18
         );
+    } else if (uColorMode == 4) {
+        // Mega Wave: Colors mode + horizontal blur + waveScale 10.0
+        vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 1.0 / LINES))).rgb);
+        lineCol = mix(camColor, colorUp, 0.25) * 1.92;
+    } else {
+        // Prism Surge: Prism Warp + waveScale 14.0 + wider channel split
+        float shift = 0.0055;
+        float r = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(shift, 0.0))).rgb).r;
+        float g = camColor.g;
+        float b = liftShadows(texture(iChannel0, safeUV(sampleUV - vec2(shift, 0.0))).rgb).b;
+        lineCol = vec3(r, g, b) * vec3(1.75, 1.20, 1.80);
     }
 
     float scan = 0.97 + 0.03 * sin((sampleBase.y * iResolution.y) * PI);
@@ -369,7 +384,11 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
 
 vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     float charAspect = 1.85;
-    float density = clamp(uAsciiDensity, 1.00, 6.00);
+    // Dense modes (2+3) run at 2× density and mix letters+symbols
+    bool denseMode = (uColorMode >= 2);
+    float density = denseMode
+        ? clamp(uAsciiDensity * 2.0, 2.0, 12.0)
+        : clamp(uAsciiDensity, 1.00, 6.00);
     vec2 grid = vec2(94.0 * density, floor(94.0 * density * iResolution.y / iResolution.x / charAspect));
     grid.y = max(grid.y, 18.0);
 
@@ -386,17 +405,24 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     boosted = clamp(pow(boosted, 0.83), 0.0, 1.0);
     vec3 camLifted = clamp(camColor + vec3(0.10 * shadowBoost), 0.0, 1.0);
 
-    bool letters = (uColorMode >= 2);
-    bool invertMode = (uColorMode >= 2);
-    float tone = invertMode ? (1.0 - boosted) : boosted;
+    // Dense modes: not inverted. Modes 0/1: symbols only. Dense: 70% letters + 30% symbols.
+    float tone = boosted;
 
     float glyph;
-    if (letters) {
-        float jitter = (hash12(cellId * vec2(0.71, 1.17)) - 0.5) * 0.22;
-        float idxF = clamp(tone + jitter, 0.0, 1.0);
-        int letterIndex = int(floor(idxF * 52.0));
-        letterIndex = clamp(letterIndex, 0, 51);
-        glyph = glyphLetterInk(cellUV, letterIndex);
+    if (denseMode) {
+        // Per-cell random to decide letter vs symbol (70/30 split)
+        float mixRoll = hash12(cellId * vec2(2.31, 1.79) + 3.7);
+        if (mixRoll > 0.30) {
+            float jitter = (hash12(cellId * vec2(0.71, 1.17)) - 0.5) * 0.22;
+            float idxF = clamp(tone + jitter, 0.0, 1.0);
+            int letterIndex = clamp(int(floor(idxF * 52.0)), 0, 51);
+            glyph = glyphLetterInk(cellUV, letterIndex);
+        } else {
+            int level = int(clamp(floor(tone * 8.0), 0.0, 7.0));
+            vec2 p = cellUV - 0.5;
+            p.y *= charAspect;
+            glyph = glyphSymbolInk(p, level);
+        }
     } else {
         int level = int(clamp(floor(tone * 8.0), 0.0, 7.0));
         vec2 p = cellUV - 0.5;
@@ -406,21 +432,20 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 
     vec3 tint;
     if (uColorMode == 0) {
-        tint = camLifted;
+        tint = camLifted;          // Color symbols
     } else if (uColorMode == 1) {
-        tint = vec3(boosted);
+        tint = vec3(boosted);      // Monochrome symbols
     } else if (uColorMode == 2) {
-        tint = vec3(1.0 - boosted);
+        tint = vec3(boosted);      // Dense Mono Mix — monochrome, not inverted
     } else {
-        tint = 1.0 - camLifted.bgr;
-        tint = pow(tint, vec3(0.86)) * vec3(1.18, 1.08, 1.25);
+        tint = camLifted;          // Dense Color Mix — color, not inverted
     }
 
     float scan = 0.93 + 0.07 * sin(fragCoord.y * PI);
     float vignette = pow(clamp(16.0 * uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y), 0.0, 1.0), 0.25);
     float noise = (hash12(cellId + floor(iTime * 18.0)) - 0.5) * 0.040;
 
-    float bgLevel = invertMode ? (0.12 + (1.0 - tone) * 0.16) : (0.05 + tone * 0.05);
+    float bgLevel = 0.05 + tone * 0.05;
     vec3 color = vec3(bgLevel) * tint;
     color += tint * glyph * (0.45 + tone * 1.25);
     color += noise * (0.15 + glyph * 0.85);
@@ -433,8 +458,7 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 //  uColorMode:
 //    0  Full Color   — camera pixelated, colors corrected (BGR→RGB)
 //    1  Game Boy     — DMG-01 four-shade green palette + LCD pixel gap
-//    2  CMYK Melt    — print-like cyan/magenta/yellow/black with ordered dither
-//    3  Toxic Candy  — neon candy palette with aggressive quantization
+//    2  Toxic Candy  — neon candy palette with rounded pixel corners
 //
 //  uPixelSize: block edge in screen pixels (4 – 48)
 
@@ -500,21 +524,8 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
         float by = smoothstep(0.0, gapW, inBlock.y) * (1.0 - smoothstep(1.0 - gapW, 1.0, inBlock.y));
         col = mix(vec3(0.031, 0.110, 0.031), col, bx * by);
 
-    } else if (uColorMode == 2) {
-        // ── CMYK Melt ───────────────────────────────────────────────────────
-        float t = clamp(luma + (bayer4(blockId) - 0.5) * 0.22, 0.0, 1.0);
-        int lvl = clamp(int(floor(t * 4.0)), 0, 3);
-        if      (lvl == 0) col = vec3(0.040, 0.040, 0.055);  // rich black
-        else if (lvl == 1) col = vec3(0.980, 0.130, 0.710);  // magenta
-        else if (lvl == 2) col = vec3(0.000, 0.760, 1.000);  // cyan
-        else               col = vec3(1.000, 0.900, 0.000);  // yellow
-
-        // Fake print "ink pooling" in larger blocks.
-        float edge = min(min(inBlock.x, 1.0 - inBlock.x), min(inBlock.y, 1.0 - inBlock.y));
-        col *= mix(0.85, 1.03, smoothstep(0.00, 0.24, edge));
-
-    } else if (uColorMode == 3) {
-        // ── Toxic Candy ─────────────────────────────────────────────────────
+    } else {
+        // ── Toxic Candy (mode 2) ────────────────────────────────────────────
         float sat = length(raw - vec3(getLuma(raw)));
         float t = clamp(pow(luma, 0.88) + (bayer4(blockId + 1.0) - 0.5) * 0.26, 0.0, 1.0);
         int lvl = clamp(int(floor(t * 5.0)), 0, 4);
@@ -527,8 +538,12 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
         // Push neon accents where source saturation is high.
         col = mix(col, col * vec3(1.05, 1.10, 1.05), smoothstep(0.18, 0.58, sat));
 
-    } else {
-        col = raw;
+        // Rounded pixel corners using SDF — radius adapts to block size
+        float r = clamp(4.0 / ps, 0.06, 0.32);
+        vec2 q = abs(inBlock - 0.5) - vec2(0.5 - r);
+        float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+        float pixelMask = 1.0 - smoothstep(-1.5 / ps, 1.5 / ps, sdf);
+        col = mix(vec3(0.02, 0.02, 0.03), col, pixelMask);
     }
 
     return clamp(col, 0.0, 1.0);
@@ -612,7 +627,10 @@ vec3 renderRasterVision(vec2 uv, vec2 fragCoord) {
         col = mix(paper, pastel, dot * 0.88 + 0.08);
         col = mix(col, pastel * 0.55, smoothstep(0.20, 0.40, edge));
     } else {
-        vec3 pop = clamp(pow(raw, vec3(0.80)) * 1.35, 0.0, 1.0);
+        // Vibrant Pop: saturation boost (not brightness) to avoid channel clipping / blue skin
+        vec3 gray = vec3(getLuma(raw));
+        vec3 pop = clamp(gray + (raw - gray) * 2.0, 0.0, 1.0);
+        pop = clamp(pow(pop, vec3(0.88)) * 1.10, 0.0, 1.0);
         pop = floor(pop * 6.0) / 5.0;
         float tone = clamp(luma, 0.0, 1.0);
         float radius = clamp(0.08 + tone * 0.36 + var * 0.50, 0.05, 0.47);
@@ -620,139 +638,6 @@ vec3 renderRasterVision(vec2 uv, vec2 fragCoord) {
         vec3 bg = mix(vec3(0.03, 0.03, 0.04), pop * 0.35, 0.35);
         col = mix(bg, pop, dot);
         col = mix(col, vec3(0.02), smoothstep(0.22, 0.42, edge) * 0.62);
-    }
-
-    return clamp(col, 0.0, 1.0);
-}
-
-// ── Signal Ghost ────────────────────────────────────────────────────────────
-//
-//  A living field of letters that breathes and flows with your presence.
-//  Motion detection (CPU-side) drives two uniforms:
-//    uPresenceScale  — overall brightness: 0 = nobody, 1 = very close
-//    uMotionLevel    — frame-diff magnitude: 0 = still, 1 = strong motion
-//    uPresenceCX/CY  — weighted centroid of bright regions (0..1)
-//
-//  uColorMode:
-//    0  Void          — white glyphs on black, minimal
-//    1  Matrix        — classic green terminal rain
-//    2  Ghost Cam     — letters tinted by camera color, dim camera bg
-//    3  Neon          — position-driven hue rotation, glowing
-//    4  Thermal       — FLIR jet coloring per local luminance
-//    5  Chromatic     — RGB channels split by motion intensity
-//
-//  uAsciiDensity: field density (0.5 → 5.0), left/right arrow
-
-vec3 renderSignalGhost(vec2 uv, vec2 fragCoord) {
-    float motion   = clamp(uMotionLevel, 0.0, 1.0);
-    float presence = clamp(uPresenceScale * 1.6, 0.0, 1.0);
-    vec2  presPos  = vec2((uMirror != 0) ? (1.0 - uPresenceCX) : uPresenceCX, uPresenceCY);
-
-    // Grid: density from left/right arrows
-    float cols     = 10.0 + uAsciiDensity * 6.0;     // ~13–40 columns
-    float rows     = floor(cols * iResolution.y / iResolution.x * 0.72);
-    vec2  cellCount = vec2(cols, max(rows, 8.0));
-    vec2  cellSize  = 1.0 / cellCount;
-
-    vec2  cellId    = floor(uv * cellCount);
-    vec2  cellUV    = fract(uv * cellCount);          // 0..1 within cell
-    vec2  cellCenter = (cellId + 0.5) * cellSize;
-
-    // Per-cell random personality
-    float ch  = hash12(cellId);
-    float ch2 = hash12(cellId * 2.3 + 1.7);
-
-    // -- SCALE --
-    // Tiny at rest. Each cell has its own motion phase offset so the
-    // "explosion" on movement ripples across the field like a wave,
-    // rather than all letters growing at the same moment.
-    float breathe     = 0.5 + 0.5 * sin(iTime * (0.28 + ch * 0.55) + ch * 6.28);
-    float baseline    = 0.07 + breathe * 0.04;        // 0.07–0.11 at rest
-
-    // Per-cell motion burst: staggered phase so different letters peak
-    // at different moments → organic wave feeling
-    float phaseOffset = ch * 6.28 + ch2 * 3.14;
-    float burst       = 0.5 + 0.5 * sin(iTime * (4.0 + ch * 3.0) + phaseOffset);
-    float motionBoost = motion * burst * (0.5 + ch * 0.5) * 1.2;
-
-    // Proximity to detected centroid amplifies reaction
-    float distToP    = length(cellCenter - presPos);
-    float proximity  = 1.0 / (distToP * cellCount.x * 0.6 + 1.0);
-    float presBoost  = presence * proximity * 0.18;
-
-    float scale = clamp(baseline + motionBoost + presBoost, 0.04, 0.96);
-
-    // -- LETTER SELECTION --
-    // Slow cycling at rest. Fast scramble during motion.
-    float changeRate = 0.04 + motion * (3.0 + ch * 4.0);
-    float slot       = floor(iTime * changeRate + ch * 11.0);
-    int   letter     = clamp(int(floor(
-        hash12(cellId + vec2(slot * 0.13, slot * 0.09)) * 26.0
-    )), 0, 25);
-
-    // -- WOBBLE --
-    // Letters shift off-center during motion (more in high-motion cells)
-    vec2 wobble  = vec2(ch - 0.5, ch2 - 0.5) * motion * burst * 0.22;
-    vec2 letterUV = (cellUV - 0.5 - wobble) / scale + 0.5;
-
-    float ink = 0.0;
-    if (letterUV.x >= 0.0 && letterUV.x < 1.0 &&
-        letterUV.y >= 0.0 && letterUV.y < 1.0) {
-        ink = glyphUpperInk(clamp(letterUV, 0.0, 0.999), letter);
-    }
-
-    // Soft glow halo around each letter during motion
-    float glow = ink * motion * burst * proximity * 0.45;
-
-    // Camera sample for color modes
-    vec2 sampleUV  = safeUV(cameraMirrorUV(cellCenter));
-    vec3 camCol    = texture(iChannel0, sampleUV).bgr;
-    float cellLuma = liftShadowLuma(getLuma(camCol));
-
-    // Base brightness: visible at rest, vivid during motion
-    float bright = 0.35 + motion * burst * 0.65 + presence * 0.15;
-
-    vec3 col;
-
-    if (uColorMode == 0) {
-        // ── Void: white on black ────────────────────────────────────────────
-        col = vec3(ink * bright + glow * 0.25);
-
-    } else if (uColorMode == 1) {
-        // ── Matrix: green terminal ───────────────────────────────────────────
-        float g = ink * bright;
-        col  = vec3(g * 0.12, g, g * 0.06);
-        col += vec3(0.0, glow * 0.20, 0.0);
-
-    } else if (uColorMode == 2) {
-        // ── Ghost Cam: letters tinted by camera, faint bg ───────────────────
-        col  = camCol * ink * bright;
-        col += camCol * 0.04;
-
-    } else if (uColorMode == 3) {
-        // ── Neon: per-cell hue that shifts on motion ─────────────────────────
-        float hue = fract(ch + motion * burst * 0.4 + iTime * 0.025);
-        vec3  c   = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
-        col  = c * ink * bright;
-        col += c * glow * 0.40;
-
-    } else if (uColorMode == 4) {
-        // ── Thermal: FLIR jet per cell luma ─────────────────────────────────
-        float t = cellLuma;
-        float r = clamp(1.5 - abs(4.0 * t - 3.0), 0.0, 1.0);
-        float g = clamp(1.5 - abs(4.0 * t - 2.0), 0.0, 1.0);
-        float b = clamp(1.5 - abs(4.0 * t - 1.0), 0.0, 1.0);
-        vec3  tc = mix(vec3(r, g, b), vec3(1.0), smoothstep(0.88, 1.0, t));
-        col  = tc * ink * bright;
-        col += tc * glow * 0.25;
-
-    } else {
-        // ── Chromatic: RGB split driven by motion burst ──────────────────────
-        float shift = motion * burst * 0.014;
-        float rL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV + vec2( shift, 0.0))).bgr));
-        float bL = liftShadowLuma(getLuma(texture(iChannel0, safeUV(sampleUV - vec2( shift, 0.0))).bgr));
-        col  = vec3(ink * rL, ink * cellLuma, ink * bL) * bright;
-        col += glow * vec3(0.12, 0.0, 0.22);
     }
 
     return clamp(col, 0.0, 1.0);
@@ -769,68 +654,181 @@ vec4 hash44(vec4 p4) {
     return fract(123.45 * p4);
 }
 
-// ── Datamosh Trails ─────────────────────────────────────────────────────────
-// uAsciiDensity: amount (0.5..6.0)
+// ── Digital Codec Corruption ─────────────────────────────────────────────────
+// uAsciiDensity: block corruption intensity (0.5..6.0)
+// uColorMode: 0=RGB Mosh  1=Thermal Glitch  2=Acid Trip  3=Void Codec
 vec3 renderDatamoshTrails(vec2 uv, vec2 fragCoord) {
     vec2 cuv = safeUV(cameraMirrorUV(uv));
-    vec3 base = texture(iChannel0, cuv).rgb;
     float amount = clamp(uAsciiDensity, 0.5, 6.0);
 
-    vec2 px = vec2(1.0) / iResolution.xy;
-    vec3 n = texture(iChannel0, safeUV(cuv + vec2(0.0, px.y))).rgb;
-    vec3 e = texture(iChannel0, safeUV(cuv + vec2(px.x, 0.0))).rgb;
-    float gy = getLuma(n) - getLuma(base);
-    float gx = getLuma(e) - getLuma(base);
+    // Macroblocks: grow larger with intensity (JPEG/H.264 artifact)
+    float blockSize = mix(8.0, 32.0, amount / 6.0);
+    vec2 blockUV = vec2(blockSize) / iResolution.xy;
+    vec2 blockId = floor(cuv / blockUV);
 
-    vec2 drift = vec2(gy, -gx) * (0.020 * amount);
-    drift.x += (hash12(vec2(floor(fragCoord.y * 0.25), floor(iTime * 20.0))) - 0.5) * 0.015 * amount;
+    // Per-block corruption decision — animated at low frame rate
+    float blockHash = hash12(blockId + floor(iTime * 0.7) * vec2(1.3, 0.7));
+    float corruptThresh = mix(0.75, 0.28, amount / 6.0);
+    bool corrupted = blockHash > corruptThresh;
 
-    vec3 ghostA = texture(iChannel0, safeUV(cuv - drift)).rgb;
-    vec3 ghostB = texture(iChannel0, safeUV(cuv - drift * 2.0)).rgb;
-    vec3 col = mix(base, ghostA, 0.58);
-    col = mix(col, ghostB, 0.28);
+    vec2 sampledUV = cuv;
+    if (corrupted) {
+        // Jump to wrong macroblock (codec keyframe error)
+        vec2 blockOffset = vec2(
+            floor(hash12(blockId * 2.1 + 0.3) * 9.0 - 4.5),
+            floor(hash12(blockId * 1.7 + 0.7) * 7.0 - 3.5)
+        ) * blockUV;
+        sampledUV = safeUV(cuv + blockOffset);
+    }
 
-    // Keep startup palette neutral; aggressive channel split can be re-added as a variant.
-    col = mix(col, base, 0.22);
+    vec3 base = texture(iChannel0, sampledUV).rgb;
+
+    // Horizontal DC-smear artifact on corrupted blocks
+    float smear = corrupted ? amount * 0.006 : 0.0;
+    vec3 smearL = texture(iChannel0, safeUV(sampledUV - vec2(smear * 2.5, 0.0))).rgb;
+    vec3 smearR = texture(iChannel0, safeUV(sampledUV + vec2(smear, 0.0))).rgb;
+
+    // Aggressive baseline glitch on ALL blocks — no clean camera visible
+    vec2 baseJitter = vec2(hash12(blockId * 0.71 + floor(iTime * 0.3)) - 0.5, 0.0) * 0.025 * amount;
+    // Add vertical component for more chaos on non-corrupted blocks
+    baseJitter.y = (hash12(blockId * 1.13 + floor(iTime * 0.5)) - 0.5) * 0.008 * amount;
+    vec3 mild = texture(iChannel0, safeUV(sampledUV + baseJitter)).rgb;
+    mild += (hash12(fragCoord * 0.5 + iTime * 25.0) - 0.5) * 0.09;
+    mild *= vec3(1.06, 0.94, 1.05);
+
+    vec3 col = corrupted
+        ? mix(base, mix(smearL, smearR, 0.45), 0.80)   // extreme smear
+        : mild;                                          // aggressive baseline (no clean base)
+
+    if (uColorMode == 0) {
+        // RGB Mosh: R, G, B sampled from different displaced positions → chromatic smear
+        if (corrupted) {
+            float spread = blockSize * 0.6 / iResolution.x * amount;
+            float rR = texture(iChannel0, safeUV(sampledUV + vec2(spread * 1.2, 0.0))).r;
+            float gG = texture(iChannel0, sampledUV).g;
+            float bB = texture(iChannel0, safeUV(sampledUV - vec2(spread * 1.8, 0.0))).b;
+            col = vec3(rR, gG, bB);
+        }
+    } else if (uColorMode == 1) {
+        // Thermal Glitch: heat map on corrupted blocks, cool blue on clean blocks
+        float luma = getLuma(col);
+        vec3 heat;
+        if (luma < 0.25)      heat = mix(vec3(0.0), vec3(0.5, 0.0, 0.1), luma * 4.0);
+        else if (luma < 0.5)  heat = mix(vec3(0.5, 0.0, 0.1), vec3(1.0, 0.4, 0.0), (luma - 0.25) * 4.0);
+        else if (luma < 0.75) heat = mix(vec3(1.0, 0.4, 0.0), vec3(1.0, 1.0, 0.0), (luma - 0.5) * 4.0);
+        else                  heat = mix(vec3(1.0, 1.0, 0.0), vec3(1.0), (luma - 0.75) * 4.0);
+        col = corrupted ? heat : mix(vec3(luma * 0.1, luma * 0.3, luma * 0.5), vec3(luma * 0.15), 0.3);
+    } else if (uColorMode == 2) {
+        // Acid Trip: hue channel rotation on corrupted blocks → neon blast
+        if (corrupted) {
+            col = clamp(col.gbr * vec3(1.5, 1.2, 1.8), 0.0, 1.0);
+        } else {
+            col = clamp(col * vec3(0.75, 1.05, 0.85), 0.0, 1.0);
+        }
+    } else {
+        // Void Codec: corrupted blocks → black void, only edge pixels survive
+        vec2 px = vec2(1.0) / iResolution.xy;
+        float lR = getLuma(texture(iChannel0, safeUV(sampledUV + vec2(px.x, 0.0))).rgb);
+        float lL = getLuma(texture(iChannel0, safeUV(sampledUV - vec2(px.x, 0.0))).rgb);
+        float lU = getLuma(texture(iChannel0, safeUV(sampledUV + vec2(0.0, px.y))).rgb);
+        float lD = getLuma(texture(iChannel0, safeUV(sampledUV - vec2(0.0, px.y))).rgb);
+        float edge = clamp(length(vec2(lR - lL, lU - lD)) * 7.0, 0.0, 1.0);
+        col = corrupted ? vec3(edge * 0.9) : col * 0.42;
+    }
 
     return clamp(col, 0.0, 1.0);
 }
 
 // ── VHS Tracking Burn ───────────────────────────────────────────────────────
 // uAsciiDensity: tracking intensity (0.5..5.0)
+// uColorMode: 0=Signal Melt  1=Night Tape
 vec3 renderVhsTrackingBurn(vec2 uv, vec2 fragCoord) {
     vec2 cuv = safeUV(cameraMirrorUV(uv));
     float tracking = clamp(uAsciiDensity, 0.5, 5.0);
 
-    float line = floor(fragCoord.y * 0.5);
-    float roll = (hash12(vec2(line, floor(iTime * 24.0))) - 0.5) * 0.010 * tracking;
-    float warp = sin(cuv.y * 240.0 + iTime * 28.0) * 0.0022 * tracking;
-    cuv.x = clamp(cuv.x + roll + warp, 0.001, 0.999);
+    // Y/C separation: luma at cuv, chroma sampled with horizontal delay
+    float chromaDelay = 0.004 * tracking;
+    vec2 chromaUV = safeUV(cuv + vec2(chromaDelay, 0.0));
 
-    vec3 col = texture(iChannel0, cuv).rgb;
+    // Chroma bleed: weighted average of 5 horizontal chroma samples
+    float spread = 0.018 * tracking;
+    vec3 chroma = vec3(0.0);
+    chroma += texture(iChannel0, safeUV(chromaUV - vec2(spread * 2.0, 0.0))).rgb * 0.15;
+    chroma += texture(iChannel0, safeUV(chromaUV - vec2(spread,       0.0))).rgb * 0.20;
+    chroma += texture(iChannel0, chromaUV).rgb                                   * 0.30;
+    chroma += texture(iChannel0, safeUV(chromaUV + vec2(spread,       0.0))).rgb * 0.20;
+    chroma += texture(iChannel0, safeUV(chromaUV + vec2(spread * 2.0, 0.0))).rgb * 0.15;
 
-    float scan = 0.90 + 0.10 * sin(fragCoord.y * 2.4);
-    col *= scan;
+    // Reconstruct: luma from original UV, chroma from bleed channel
+    float lumaVal = getLuma(texture(iChannel0, cuv).rgb);
+    vec3 col = vec3(lumaVal) * 0.55 + chroma * 0.55;
 
-    float dropout = step(0.992, hash12(vec2(floor(fragCoord.y * 0.1), floor(iTime * 14.0))));
-    col = mix(col, col * vec3(0.22, 0.28, 0.35), dropout * 0.85);
+    // Scanline jitter: per-scanline horizontal wobble (amplified)
+    float jitter = (hash12(vec2(floor(fragCoord.y), floor(iTime * 20.0))) - 0.5) * 0.010 * tracking;
+    vec3 jittered = texture(iChannel0, safeUV(cuv + vec2(jitter, 0.0))).rgb;
+    col = mix(col, jittered, 0.30);
 
-    float noise = (hash12(fragCoord + iTime * 140.0) - 0.5) * 0.05;
-    col += noise;
-    col *= vec3(1.02, 1.00, 0.98);
+    // Head-switching artifact: large displacement in bottom 12% of frame
+    float headSwitch = 1.0 - smoothstep(0.10, 0.13, uv.y);
+    if (headSwitch > 0.0) {
+        float hsJitter = (hash12(vec2(floor(fragCoord.y * 0.25), iTime * 8.0)) - 0.5) * 0.12 * tracking;
+        vec3 hsColor = texture(iChannel0, safeUV(cuv + vec2(hsJitter, 0.0))).rgb;
+        col = mix(col, hsColor * 0.50, headSwitch);
+    }
+
+    // Luma noise (amplified)
+    col += (hash12(fragCoord + iTime * 220.0) - 0.5) * 0.075 * tracking;
+
+    // Alternating scanline dimming
+    col *= 0.88 + 0.12 * sin(fragCoord.y * 2.0);
+
+    // Color modes
+    if (uColorMode == 0) {
+        // Signal Melt: massive RGB split — extreme chromatic aberration
+        float sp = spread * 3.0;
+        col.r = texture(iChannel0, safeUV(cuv + vec2(sp, 0.0))).r;
+        col.g = texture(iChannel0, cuv).g;
+        col.b = texture(iChannel0, safeUV(cuv - vec2(sp * 1.5, 0.0))).b;
+        col = clamp(col * 1.3, 0.0, 1.0);
+    } else {
+        // Night Tape: green phosphor security camera with heavy interference
+        float lum = getLuma(col);
+        // Heavy film grain
+        float grain = (hash12(fragCoord * 1.3 + iTime * 180.0) - 0.5) * 0.20;
+        // Horizontal interference bands — random bursts
+        float bandNoise = hash12(vec2(floor(fragCoord.y * 0.12), floor(iTime * 9.0)));
+        float band = bandNoise > 0.90 ? (bandNoise - 0.90) * 10.0 : 0.0;
+        // Jitter on interference bands
+        float hglitch = (hash12(vec2(floor(fragCoord.y * 0.18), floor(iTime * 18.0))) - 0.5) * band * 0.10;
+        vec3 jitteredSrc = texture(iChannel0, safeUV(cuv + vec2(hglitch, 0.0))).rgb;
+        lum = mix(lum, getLuma(jitteredSrc), band * 0.55);
+        // Occasional full-line dropout
+        float dropout = hash12(vec2(floor(fragCoord.y * 0.07), floor(iTime * 5.0)));
+        lum *= (dropout > 0.96) ? 0.05 : 1.0;
+        col = vec3(lum * 0.07, lum * 0.95 + grain, lum * 0.09);
+        col += vec3(0.0, band * 0.30, 0.0);  // bright green interference burst
+    }
 
     return clamp(col, 0.0, 1.0);
 }
 
 // ── Posterize Glitch Comic ──────────────────────────────────────────────────
 // uAsciiDensity: quantization levels (2..12)
+// uColorMode: 0=Warhol Pop  1=Neon Cel  2=Acid Bloom  3=Plasma Burn
 vec3 renderPosterizeGlitchComic(vec2 uv, vec2 fragCoord) {
     vec2 cuv = safeUV(cameraMirrorUV(uv));
     float levels = floor(clamp(uAsciiDensity, 2.0, 12.0));
 
+    // Glitch bands: random horizontal scanband shift (amplified)
+    float bandHash = hash12(vec2(floor(fragCoord.y * 0.08), floor(iTime * 2.0)));
+    if (bandHash > 0.72) {
+        cuv.x = clamp(cuv.x + (bandHash - 0.72) * levels * 0.14, 0.001, 0.999);
+    }
+
     vec3 base = texture(iChannel0, cuv).rgb;
     vec3 poster = floor(base * levels) / max(levels - 1.0, 1.0);
 
+    // Edge detection for ink lines
     vec2 px = vec2(1.0) / iResolution.xy;
     float lR = getLuma(texture(iChannel0, safeUV(cuv + vec2(px.x, 0.0))).rgb);
     float lL = getLuma(texture(iChannel0, safeUV(cuv - vec2(px.x, 0.0))).rgb);
@@ -839,11 +837,58 @@ vec3 renderPosterizeGlitchComic(vec2 uv, vec2 fragCoord) {
     float edge = clamp(length(vec2(lR - lL, lU - lD)) * 3.5, 0.0, 1.0);
     float ink = smoothstep(0.12, 0.32, edge);
 
-    vec3 col = poster;
-    col = mix(col, vec3(0.02), ink * 0.70);
+    vec3 col;
+    if (uColorMode == 0) {
+        // Warhol Pop: bold pop palette mapped per posterize level
+        const vec3 WARHOL0 = vec3(1.00, 0.05, 0.12);
+        const vec3 WARHOL1 = vec3(1.00, 0.90, 0.00);
+        const vec3 WARHOL2 = vec3(0.00, 0.85, 1.00);
+        const vec3 WARHOL3 = vec3(0.90, 0.00, 0.90);
+        const vec3 WARHOL4 = vec3(0.00, 0.95, 0.35);
+        const vec3 WARHOL5 = vec3(1.00, 0.50, 0.00);
+        int li = clamp(int(floor(getLuma(poster) * levels)), 0, 5);
+        vec3 wc = li == 0 ? WARHOL0 : li == 1 ? WARHOL1 : li == 2 ? WARHOL2 :
+                  li == 3 ? WARHOL3 : li == 4 ? WARHOL4 : WARHOL5;
+        col = mix(wc, vec3(0.0), ink * 0.88);
+    } else if (uColorMode == 1) {
+        // Neon Cel: dark bg, neon ink edges in alternating cyan/magenta per level
+        float luma = getLuma(poster);
+        int level = int(floor(luma * levels));
+        vec3 dark = poster * 0.15;
+        vec3 neonA = vec3(0.0,  1.0,  0.95); // electric cyan
+        vec3 neonB = vec3(1.0,  0.05, 0.85); // neon magenta
+        vec3 neonC = vec3(0.95, 1.0,  0.0);  // acid yellow
+        int ni = int(mod(float(level), 3.0));
+        vec3 neonColor = ni == 0 ? neonA : (ni == 1 ? neonB : neonC);
+        col = dark + neonColor * smoothstep(0.28, 0.55, ink) * 1.85;
+    } else if (uColorMode == 2) {
+        // Acid Bloom: HSV hue per level, saturated + glowing edges
+        float levelF = float(clamp(int(floor(getLuma(poster) * levels)), 0, 11));
+        float hue = fract(levelF / max(levels, 1.0) + iTime * 0.04);
+        vec3 sat = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        col = sat * (0.85 - ink * 0.6) + sat * smoothstep(0.2, 0.5, ink) * 1.4;
+    } else {
+        // Plasma Burn: animated multi-sine plasma tinted per posterize level
+        float luma = getLuma(poster);
+        // Multi-wave plasma combining spatial and temporal frequencies
+        float plasma = sin(uv.x * 9.0 + iTime * 2.5)
+                     + sin(uv.y * 7.0 + iTime * 1.9)
+                     + sin((uv.x + uv.y) * 5.5 + iTime * 3.1)
+                     + sin(length(uv - vec2(0.5)) * 14.0 - iTime * 3.7);
+        plasma = plasma * 0.25 + 0.5;  // normalize to 0..1
+        // Per-level phase offset + global time drift for hue cycling
+        int li = clamp(int(floor(luma * levels)), 0, int(levels) - 1);
+        float levelPhase = float(li) / max(levels, 1.0) * 0.6;
+        float hue = fract(plasma + levelPhase + iTime * 0.08);
+        vec3 plasmaCol = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        // Boost saturation and mix with ink edges
+        plasmaCol = pow(plasmaCol, vec3(0.7)) * (0.85 + luma * 0.45);
+        col = mix(plasmaCol, vec3(0.0), ink * 0.70);
+    }
 
     return clamp(col, 0.0, 1.0);
 }
+
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
@@ -868,12 +913,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     } else if (uEffectMode == 2) {
         color = renderPixelArt(uv, fragCoord);
     } else if (uEffectMode == 3) {
-        color = renderSignalGhost(uv, fragCoord);
-    } else if (uEffectMode == 4) {
         color = renderRasterVision(uv, fragCoord);
-    } else if (uEffectMode == 5) {
+    } else if (uEffectMode == 4) {
         color = renderDatamoshTrails(uv, fragCoord);
-    } else if (uEffectMode == 6) {
+    } else if (uEffectMode == 5) {
         color = renderVhsTrackingBurn(uv, fragCoord);
     } else {
         color = renderPosterizeGlitchComic(uv, fragCoord);

@@ -39,7 +39,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 *(Sprinkled with emojis because let's face it: reading is hard, and a proper TL;DR needs them—kind of like a toddler needing a picture book instead of actual text).*
 
 * 📷 **The Pipeline:** Live Pi Cam → one GLSL Shader → Bare-Metal GPU. No desktop environment, no X11 bloat, zero compositor bullshit. Just pure graphical violence injected straight into the display hardware.
-* ⌨️ **The Controls:** Mash `Space` to cycle through 5 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
+* ⌨️ **The Controls:** Mash `Space` to cycle through 7 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
 * 🚀 **The Execution:** Run `./start_cannon.sh`, point the lens at a human face, and instantly generate pretentious living-room glitch art.
 * 💥 **The Dependencies:** You need a Raspberry Pi, a camera, and `kms-glsl`. If `glsl.so` is missing, the whole thing violently crashes and burns on launch. As it rightfully should.
 * 🔌 **The Flex:** Plug in HDMI + AC at a party, step back, and let everyone assume you spent six agonizing weeks coding a custom cyber-art installation.
@@ -48,7 +48,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ## Effects
 
-Eight effects, all in a single shader, switchable live with `Space`:
+Seven effects, all in a single shader, switchable live with `Space`:
 
 ### Rutt-Etra CRT
 
@@ -56,30 +56,41 @@ In 1973, [Bill Rutt and Steve Etra](https://en.wikipedia.org/wiki/Rutt/Etra_Vide
 
 This is the same thing. In GLSL. On a $40 computer. Running at 20 FPS.
 
-Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field.
-
-**Color modes:** `B/W` · `Colors` · `Prism Warp` · `Acid Melt`
-
-### ASCII Cam
-
-Every camera pixel gets mapped to a glyph from an 8x8 bitmap font hardcoded inside the shader. Luminance picks the character. The whole thing runs on the GPU in real time, with no CPU involvement in the actual rendering.
-
-**Color modes:** `Color symbols` · `Monochrome symbols` · `Inverted mono` · `Inverted color`
-
-### Pixel Art
-
-The camera downsampled to a grid of blocks, each rendered as a single pixel of a retro palette. The block size is tunable from near-native (4px) to aggressively chunky (48px). Cycling Pixel color mode applies a per-mode default size first, then `←` / `→` still tweak live.
+Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field. The last three color modes crank the displacement to genuinely unreasonable levels.
 
 | Mode | Look |
 |---|---|
-| Full Color | Pixelated camera, BGR corrected |
-| Game Boy | DMG-01 four-shade green + authentic LCD pixel gap |
-| CMYK Melt | Cyan/magenta/yellow/black print chaos with ordered dither |
-| Toxic Candy | Neon candy palette with aggressive quantization |
+| B/W | Classic white scan lines on black |
+| Colors | Camera-accurate color per scan line |
+| Prism Warp | RGB channel split — subtle chromatic aberration |
+| Acid Melt | Swirling color melt, channel-shifted BGRs — ×6 displacement |
+| Mega Wave | Colors mode blurred across neighboring scans — ×10 displacement |
+| Prism Surge | Prism Warp with extreme channel separation — ×14 displacement |
+
+### ASCII Cam
+
+Every camera pixel gets mapped to a glyph from an 8×8 bitmap font hardcoded inside the shader. Luminance picks the character. The whole thing runs on the GPU in real time, with no CPU involvement in the actual rendering. Dense modes run at double character density and mix letters with symbols (70/30 split, per-cell random).
+
+| Mode | Look |
+|---|---|
+| Color symbols | Density-scaled symbols, camera-accurate color |
+| Monochrome symbols | Same, luminance grayscale |
+| Dense Mono Mix | 2× density, 70% letters + 30% symbols, monochrome |
+| Dense Color Mix | 2× density, 70% letters + 30% symbols, camera color |
+
+### Pixel Art
+
+The camera downsampled to a grid of blocks, each rendered as a single pixel of a retro palette. The block size is tunable from near-native (4px) to aggressively chunky (48px). Cycling color mode applies a per-mode default block size first, then `←` / `→` still tweak live.
+
+| Mode | Look | Default size |
+|---|---|---|
+| Full Color | Pixelated camera, colors corrected | 4px |
+| Game Boy | DMG-01 four-shade green + authentic LCD pixel gap | 6px |
+| Toxic Candy | Neon candy palette — aggressively quantized, with rounded pixel corners | 8px |
 
 ### Raster Vision
 
-Dedicated halftone/raster effect (separate from Pixel Art): thermal and comic looks rendered as variable-size dots.  
+Dedicated halftone/raster effect: thermal and comic looks rendered as variable-size dots with realistic halftone jitter and edge detection.
 `←` / `→` controls raster cell size (bigger = fewer/larger dots, smaller = denser dots).
 
 | Mode | Look |
@@ -88,46 +99,44 @@ Dedicated halftone/raster effect (separate from Pixel Art): thermal and comic lo
 | Thermal Inverted | Red-cold / blue-hot raster dots |
 | Comic B/W | Black-ink halftone + edge lines |
 | Comic Pastel | Soft posterized pastel halftone |
-| Vibrant Pop | Saturated comic-print style |
+| Vibrant Pop | Saturated comic-print style, saturation-boosted to prevent channel clipping |
 
-### Signal Ghost
+### Digital Codec Corruption
 
-Interactive generative typography. A field of letters that lives and breathes with your presence.
-
-The capture loop runs motion detection and presence estimation at 1/8 resolution on the CPU — cheap enough to run every frame without touching the GPU budget. The results drive four GLSL uniforms:
-
-- **`uMotionLevel`** — frame-diff magnitude, dead-zone filtered, asymmetrically smoothed (fast attack, slow decay so gestures linger visually)
-- **`uPresenceScale`** — overall scene luminance, a proxy for how close you are
-- **`uPresenceCX/CY`** — weighted centroid of bright regions: where you are in the frame
-
-At rest: small letters, slow breathing. When you move: letters burst with per-cell staggered timing, creating a wave across the field rather than a uniform explosion. When you approach: letters near your centroid amplify their reaction.
+Macroblocking, keyframe corruption, DC smear — looks like an H.264 stream having a stroke. Every block gets a baseline aggressive jitter; "corrupted" blocks get the full treatment: wrong-macroblock jump + horizontal smear. No pixel in the frame is clean.
 
 | Mode | Look |
 |---|---|
-| Void | White glyphs on black, minimal |
-| Matrix | Classic green terminal |
-| Ghost Cam | Letters tinted by camera, faint camera ghost background |
-| Neon | Per-cell hue that shifts on motion |
-| Thermal | FLIR jet coloring per local luminance |
-| Chromatic | RGB channels split by motion intensity |
+| RGB Mosh | Chromatic smear on corrupted blocks |
+| Thermal Glitch | Heat map on corrupted, cool blue on mild blocks |
+| Acid Trip | Hue rotation → neon blast on corruption |
+| Void Codec | Corrupted = black void, only edges survive |
 
-### Datamosh Trails
-
-Aggressive live smear/glitch pass: motion-like edge drift, ghosted copies, and channel split.
-
-**Color modes:** `Trails`
+`←` / `→` controls corruption intensity (amount 0.5–6.0).
 
 ### VHS Tracking Burn
 
-Analog tape chaos: horizontal tracking drift, chroma bleed, scanline flicker, and random dropouts.
+Analog tape chaos: chroma bleed, Y/C separation, scanline jitter, head-switching artifact in the bottom 12%, luma noise. Two distinct vibes.
 
-**Color modes:** `Tracking Burn`
+| Mode | Look |
+|---|---|
+| Signal Melt | Massive RGB split — R, G, B sampled from 3× separate horizontal offsets |
+| Night Tape | Green phosphor security cam — heavy grain, interference bands, line dropouts |
+
+`←` / `→` controls tracking intensity (0.5–5.0).
 
 ### Posterize Glitch Comic
 
-Hard quantization + edge ink + mild RGB split, for instant printed-comic meltdown vibes.
+Hard luminance quantization + edge ink detection + random horizontal band glitch. Instant printed-comic meltdown, four very different color treatments.
 
-**Color modes:** `Comic Glitch`
+| Mode | Look |
+|---|---|
+| Warhol Pop | Per-level bold pop palette: red / yellow / cyan / violet / lime / orange |
+| Neon Cel | Dark bg, neon cyan/magenta/yellow ink on edges per quantize level |
+| Acid Bloom | Animated HSV hue per level — slowly cycling rainbow posterization |
+| Plasma Burn | Multi-sine animated plasma tinted per level — full chromatic delirium |
+
+`←` / `→` controls quantization levels (2–12).
 
 ---
 
@@ -155,7 +164,7 @@ capture thread ──(threading.Lock)──▶ latest frame
 
 **Render**: `kms-glsl`'s C loop fires a Python callback every frame. The callback uploads the texture and pushes all uniforms to the GPU.
 
-**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, four completely different visual systems, routed by `uEffectMode`.
+**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, seven completely different visual systems, routed by `uEffectMode`.
 
 **Keyboard**: a separate thread reads `/dev/tty` in raw mode (`ICANON`, `ECHO`, `ISIG` all disabled). Ctrl+C arrives as `\x03` bytes and triggers graceful shutdown. `SIGTERM` and `SIGHUP` are also handled — kill from SSH works cleanly.
 
@@ -210,10 +219,10 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 
 | Key | Action |
 |---|---|
-| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Signal Ghost → Raster Vision → Datamosh Trails → VHS Tracking Burn → Posterize Glitch Comic |
+| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Raster Vision → Digital Codec Corruption → VHS Tracking Burn → Posterize Glitch Comic |
 | `S` | 3-second countdown then save rendered screenshot to `shots/` |
 | `↑` / `↓` | Cycle color mode (per-effect, independent) |
-| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Ghost: field density · Raster: dot size · Datamosh: amount · VHS: tracking · Poster: levels |
+| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Raster: dot size · Codec: corruption amount · VHS: tracking · Poster: levels |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |
 | `M` | Toggle horizontal mirror of current view |
 | `F` | Toggle FPS logging to terminal |
@@ -235,11 +244,12 @@ So yes, your shader experiments are timestamped evidence now. Very professional.
 ## Startup / Shutdown
 
 On boot, after camera and GL init:
-- Logo appears line-by-line (scan effect)
-- System status box: hostname, SoC temperature (color-coded), RAM, uptime, active shader, effect
-- Random nerd quote from a curated list
+- Figlet title printed full-width above the status box, lolcat-colorized
+- NFO/cracktro-style status box: hostname, SoC temperature, RAM, uptime, shader, active effect
+- Random demoscene boot quote, centered with a white glow fade-in
+- 5-second countdown bar before the renderer takes over
 
-On shutdown: clean logo + session stats (duration, estimated frames rendered, average FPS).
+On shutdown: clean session stats (duration, estimated frames, average FPS) plus a randomly chosen send-off line.
 
 ---
 
@@ -249,16 +259,21 @@ On shutdown: clean logo + session stats (duration, estimated frames rendered, av
 |---|---|
 | View mode | 16:9 |
 | Mirror | ON (because the camera should stop gaslighting you) |
+| Effect | Rutt-Etra CRT |
 | Rutt color | Prism Warp |
 | ASCII color | Color symbols |
 | Pixel Art color | Game Boy |
-| Signal Ghost color | Void |
 | Raster Vision color | Thermal Raster |
+| Codec color | RGB Mosh |
+| VHS color | Signal Melt |
+| Poster color | Warhol Pop |
 | Rutt wave | 0.40 |
 | ASCII density | 3.00 |
-| Pixel block size | 16px |
-| Ghost field density | 2.0 |
+| Pixel block size | 6px (Game Boy default) |
 | Raster dot size | 12px |
+| Codec amount | 2.0 |
+| VHS tracking | 1.5 |
+| Poster levels | 4 |
 | FPS baseline | ~20 FPS |
 
 ---
@@ -269,7 +284,9 @@ On shutdown: clean logo + session stats (duration, estimated frames rendered, av
 
 **The GIL is load-bearing.** Globals like `current_rutt_wave` are written by the keyboard thread and read by the render callback with no explicit locking. CPython's GIL makes these reads atomically safe. Port to free-threaded Python and add locks.
 
-**Never use SIGTERM/SIGKILL to stop the process.** Both are now handled gracefully (SIGTERM → same clean shutdown path as Ctrl+C), but a SIGKILL will leave DRM in an exclusive state that may survive a soft reboot and require a hard power cycle.
+**Never use SIGKILL to stop the process.** SIGTERM and SIGHUP are handled gracefully (same shutdown path as Ctrl+C), but a SIGKILL will leave DRM in an exclusive state that may survive a soft reboot and require a hard power cycle.
+
+**Blue-skin in new raster effects** usually means brightness boosting is clipping the red channel. Use saturation boost (`mix(gray, raw, factor)`) instead.
 
 **Testing without Pi hardware** will fail immediately. `Picamera2` won't import, EGL won't initialize, `kms-glsl` will complain. This is correct.
 
