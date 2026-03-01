@@ -290,21 +290,21 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         sampleBase += vec2(
             sin((sampleBase.y + iTime * 0.20) * 16.0),
             cos((sampleBase.x - iTime * 0.16) * 13.0)
-        ) * 0.006;
+        ) * 0.0038;
     } else if (uColorMode == 3) {
         vec2 p = sampleBase - 0.5;
         float r = length(p);
         float a = atan(p.y, p.x);
-        a += sin(r * 12.0 - iTime * 0.58) * 0.120;
+        a += sin(r * 10.0 - iTime * 0.40) * 0.058;
         sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
         sampleBase += vec2(
-            cos((sampleBase.y + iTime * 0.42) * 24.0),
-            sin((sampleBase.x - iTime * 0.36) * 21.0)
-        ) * 0.0130;
+            cos((sampleBase.y + iTime * 0.24) * 14.0),
+            sin((sampleBase.x - iTime * 0.21) * 12.0)
+        ) * 0.0058;
         sampleBase += vec2(
-            sin((p.y + iTime * 0.72) * 31.0),
-            cos((p.x - iTime * 0.66) * 27.0)
-        ) * 0.0060;
+            sin((p.y + iTime * 0.36) * 19.0),
+            cos((p.x - iTime * 0.33) * 17.0)
+        ) * 0.0022;
     } else if (uColorMode == 4) {
         vec2 p = sampleBase - 0.5;
         float r = length(p);
@@ -347,16 +347,26 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float px = 1.0 / iResolution.x;
     vec2 sampleUVC = safeUV(sampleUV);
     vec3 sampleColC = texture(iChannel0, sampleUVC).rgb;
-    float lumaRaw =
-        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px * 2.0, 0.0))).rgb) * 0.1 +
-        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb) * 0.2 +
-        getLuma(sampleColC) * 0.4 +
-        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.2 +
-        getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb) * 0.1;
+    float lumaRaw;
+    if (uColorMode == 1) {
+        lumaRaw = getLuma(sampleColC);
+    } else if (uColorMode == 2) {
+        lumaRaw =
+            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb) * 0.25 +
+            getLuma(sampleColC) * 0.50 +
+            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.25;
+    } else {
+        lumaRaw =
+            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px * 2.0, 0.0))).rgb) * 0.1 +
+            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb) * 0.2 +
+            getLuma(sampleColC) * 0.4 +
+            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.2 +
+            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb) * 0.1;
+    }
     float luma = liftShadowLuma(lumaRaw);
 
     float waveScale = 1.0;
-    if (uColorMode == 3) waveScale = 9.5;
+    if (uColorMode == 3) waveScale = 6.8;
     else if (uColorMode == 4) waveScale = 15.0;
     else if (uColorMode == 5) waveScale = 22.0;
     float lineY = normI + luma * (EXTRUSION * uRuttWave * waveScale);
@@ -368,7 +378,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, baseDist);
     float haze = (1.0 - smoothstep(0.0, LINE_WIDTH * 12.0, dist)) * 0.08 * luma;
     float modeEnergy = 1.0;
-    if (uColorMode == 3) modeEnergy = 1.36;
+    if (uColorMode == 3) modeEnergy = 1.12;
     else if (uColorMode == 4) modeEnergy = 1.58;
     else if (uColorMode == 5) modeEnergy = 1.84;
     lineAlpha *= modeEnergy;
@@ -380,30 +390,32 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     if (uColorMode == 0) {
         lineCol = vec3(1.08);
     } else if (uColorMode == 1) {
-        lineCol = pow(camColor, vec3(0.90)) * 1.92;
+        lineCol = pow(camColor, vec3(0.82)) * 2.10 + vec3(0.08, 0.07, 0.08);
     } else if (uColorMode == 2) {
-        float shift = 0.0022;
+        float shift = 0.0016;
         float r = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(shift, 0.0))).rgb).r;
-        float g = camColor.g;
+        float g = camColor.g * 1.18;
         float b = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).rgb).b;
-        lineCol = vec3(r, g, b) * vec3(1.65, 1.18, 1.72);
+        vec3 split = vec3(r, g, b) * vec3(1.40, 1.34, 1.48);
+        lineCol = mix(split, camColor * 2.05, 0.46);
     } else if (uColorMode == 3) {
         vec2 meltUV = safeUV(sampleUV + vec2(
-            sin((normI + iTime * 0.40) * 13.8),
-            cos((sampleUV.x - iTime * 0.36) * 11.6)
-        ) * 0.0110);
+            sin((normI + iTime * 0.24) * 10.0),
+            cos((sampleUV.x - iTime * 0.20) * 8.2)
+        ) * 0.0060);
         vec3 melt = liftShadows(texture(iChannel0, meltUV).rgb);
         vec3 candy = vec3(
-            0.5 + 0.5 * sin(iTime * 1.42 + normI * 24.0),
-            0.5 + 0.5 * sin(iTime * 1.66 + sampleUV.x * 19.0 + 2.094),
-            0.5 + 0.5 * sin(iTime * 1.86 + (normI + sampleUV.x) * 21.0 + 4.188)
+            0.5 + 0.5 * sin(iTime * 1.10 + normI * 16.0),
+            0.5 + 0.5 * sin(iTime * 1.24 + sampleUV.x * 13.0 + 2.094),
+            0.5 + 0.5 * sin(iTime * 1.38 + (normI + sampleUV.x) * 14.0 + 4.188)
         );
         vec3 acid = vec3(
-            melt.g * 2.05 + melt.b * 0.62,
-            melt.b * 1.84 + melt.r * 0.54,
-            melt.r * 1.98 + melt.g * 0.58
+            melt.g * 1.62 + melt.b * 0.48,
+            melt.b * 1.46 + melt.r * 0.42,
+            melt.r * 1.56 + melt.g * 0.44
         );
-        lineCol = mix(acid * 1.32, candy * 2.60, 0.42) + vec3(0.16, 0.12, 0.18);
+        vec3 wild = mix(acid * 1.22, candy * 1.64, 0.30);
+        lineCol = mix(wild, camColor * 2.08, 0.62) + vec3(0.05, 0.04, 0.06);
     } else if (uColorMode == 4) {
         // Mega Wave: bright multi-sample blend with moving candy ribbons
         vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 2.0 / LINES))).rgb);
@@ -443,13 +455,15 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     color += lineCol * scaffold * (0.06 + 0.14 * luma);
     color *= scan * grille * mix(0.72, 1.0, vignette);
     color *= 1.34;
-    if (uColorMode == 3) color *= 1.12;
+    if (uColorMode == 1) color *= 1.12;
+    else if (uColorMode == 2) color *= 1.08;
+    else if (uColorMode == 3) color *= 1.05;
     else if (uColorMode == 4) color *= 1.18;
     else if (uColorMode == 5) color *= 1.28;
 
     if (uColorMode >= 3) {
         float lum = getLuma(color);
-        float sat = (uColorMode == 5) ? 1.70 : ((uColorMode == 4) ? 1.52 : 1.40);
+        float sat = (uColorMode == 5) ? 1.70 : ((uColorMode == 4) ? 1.52 : 1.22);
         color = mix(vec3(lum), color, sat);
     }
     color += noise;
