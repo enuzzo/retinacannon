@@ -295,12 +295,45 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         vec2 p = sampleBase - 0.5;
         float r = length(p);
         float a = atan(p.y, p.x);
-        a += sin(r * 8.0 - iTime * 0.18) * 0.032;
+        a += sin(r * 12.0 - iTime * 0.58) * 0.120;
         sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
         sampleBase += vec2(
-            cos((sampleBase.y + iTime * 0.10) * 9.0),
-            sin((sampleBase.x - iTime * 0.09) * 8.0)
-        ) * 0.0035;
+            cos((sampleBase.y + iTime * 0.42) * 24.0),
+            sin((sampleBase.x - iTime * 0.36) * 21.0)
+        ) * 0.0130;
+        sampleBase += vec2(
+            sin((p.y + iTime * 0.72) * 31.0),
+            cos((p.x - iTime * 0.66) * 27.0)
+        ) * 0.0060;
+    } else if (uColorMode == 4) {
+        vec2 p = sampleBase - 0.5;
+        float r = length(p);
+        float a = atan(p.y, p.x);
+        a += sin(r * 14.0 - iTime * 0.82) * 0.160;
+        sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
+        sampleBase += vec2(
+            sin((sampleBase.y + iTime * 0.72) * 34.0),
+            cos((sampleBase.x - iTime * 0.66) * 29.0)
+        ) * 0.0175;
+        sampleBase += vec2(
+            sin((sampleBase.y * 41.0) + iTime * 2.40),
+            cos((sampleBase.x * 33.0) - iTime * 2.10)
+        ) * 0.0085;
+    } else if (uColorMode == 5) {
+        vec2 p = sampleBase - 0.5;
+        float r = length(p);
+        float a = atan(p.y, p.x);
+        a += sin(r * 17.0 - iTime * 1.00) * 0.21
+             + cos((p.x + p.y) * 22.0 + iTime * 0.95) * 0.120;
+        sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
+        sampleBase += vec2(
+            sin((sampleBase.y + iTime * 1.05) * 44.0),
+            cos((sampleBase.x - iTime * 0.95) * 39.0)
+        ) * 0.0240;
+        sampleBase += vec2(
+            sin((p.y * 29.0) + iTime * 3.10) + cos((p.x * 17.0) - iTime * 2.30),
+            cos((p.x * 27.0) - iTime * 2.90) + sin((p.y * 19.0) + iTime * 2.00)
+        ) * 0.0090;
     }
     sampleBase = safeUV(sampleBase);
 
@@ -323,9 +356,9 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float luma = liftShadowLuma(lumaRaw);
 
     float waveScale = 1.0;
-    if (uColorMode == 3) waveScale = 6.0;
-    else if (uColorMode == 4) waveScale = 10.0;
-    else if (uColorMode == 5) waveScale = 14.0;
+    if (uColorMode == 3) waveScale = 9.5;
+    else if (uColorMode == 4) waveScale = 15.0;
+    else if (uColorMode == 5) waveScale = 22.0;
     float lineY = normI + luma * (EXTRUSION * uRuttWave * waveScale);
     float dist = abs(sampleBase.y - lineY);
     float baseDist = abs(sampleBase.y - normI);
@@ -334,6 +367,13 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.24 * luma;
     float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, baseDist);
     float haze = (1.0 - smoothstep(0.0, LINE_WIDTH * 12.0, dist)) * 0.08 * luma;
+    float modeEnergy = 1.0;
+    if (uColorMode == 3) modeEnergy = 1.36;
+    else if (uColorMode == 4) modeEnergy = 1.58;
+    else if (uColorMode == 5) modeEnergy = 1.84;
+    lineAlpha *= modeEnergy;
+    glow *= modeEnergy * 1.10;
+    haze *= modeEnergy * 1.20;
 
     vec3 camColor = liftShadows(sampleColC);
     vec3 lineCol;
@@ -348,27 +388,50 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         float b = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).rgb).b;
         lineCol = vec3(r, g, b) * vec3(1.65, 1.18, 1.72);
     } else if (uColorMode == 3) {
-        vec2 slowUV = safeUV(sampleUV + vec2(
-            sin((normI + iTime * 0.11) * 7.5),
-            cos((sampleUV.x - iTime * 0.09) * 6.2)
-        ) * 0.004);
-        vec3 melt = liftShadows(texture(iChannel0, slowUV).rgb).bgr;
-        lineCol = vec3(
-            melt.r * 1.45 + melt.g * 0.20,
-            melt.g * 1.08 + melt.b * 0.15,
-            melt.b * 1.40 + melt.r * 0.18
+        vec2 meltUV = safeUV(sampleUV + vec2(
+            sin((normI + iTime * 0.40) * 13.8),
+            cos((sampleUV.x - iTime * 0.36) * 11.6)
+        ) * 0.0110);
+        vec3 melt = liftShadows(texture(iChannel0, meltUV).rgb);
+        vec3 candy = vec3(
+            0.5 + 0.5 * sin(iTime * 1.42 + normI * 24.0),
+            0.5 + 0.5 * sin(iTime * 1.66 + sampleUV.x * 19.0 + 2.094),
+            0.5 + 0.5 * sin(iTime * 1.86 + (normI + sampleUV.x) * 21.0 + 4.188)
         );
+        vec3 acid = vec3(
+            melt.g * 2.05 + melt.b * 0.62,
+            melt.b * 1.84 + melt.r * 0.54,
+            melt.r * 1.98 + melt.g * 0.58
+        );
+        lineCol = mix(acid * 1.32, candy * 2.60, 0.42) + vec3(0.16, 0.12, 0.18);
     } else if (uColorMode == 4) {
-        // Mega Wave: Colors mode + horizontal blur + waveScale 10.0
-        vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 1.0 / LINES))).rgb);
-        lineCol = mix(camColor, colorUp, 0.25) * 1.92;
+        // Mega Wave: bright multi-sample blend with moving candy ribbons
+        vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 2.0 / LINES))).rgb);
+        vec3 colorDn = liftShadows(texture(iChannel0, safeUV(sampleUV - vec2(0.0, 2.0 / LINES))).rgb);
+        vec3 colorLf = liftShadows(texture(iChannel0, safeUV(sampleUV - vec2(0.004, 0.0))).rgb);
+        vec3 colorRt = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.004, 0.0))).rgb);
+        float band = 0.5 + 0.5 * sin(normI * 54.0 + iTime * 5.8 + sampleUV.x * 11.0);
+        vec3 candy = vec3(
+            0.5 + 0.5 * sin((normI + iTime * 0.90) * 19.5),
+            0.5 + 0.5 * sin((sampleUV.x + iTime * 0.78) * 16.5 + 2.0),
+            0.5 + 0.5 * sin((normI - sampleUV.x + iTime * 1.10) * 21.5 + 4.0)
+        );
+        vec3 displaced = camColor * 0.30 + colorUp * 0.22 + colorDn * 0.20 + colorLf * 0.14 + colorRt * 0.14;
+        lineCol = displaced * 2.55 + candy * (1.10 + band * 1.25);
     } else {
-        // Prism Surge: Prism Warp + waveScale 14.0 + wider channel split
-        float shift = 0.0055;
-        float r = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(shift, 0.0))).rgb).r;
-        float g = camColor.g;
-        float b = liftShadows(texture(iChannel0, safeUV(sampleUV - vec2(shift, 0.0))).rgb).b;
-        lineCol = vec3(r, g, b) * vec3(1.75, 1.20, 1.80);
+        // Prism Surge: extreme split + candy drive, bright and heavily distorted
+        float shift = 0.0120 + 0.0060 * sin(iTime * 1.40 + normI * 26.0);
+        vec3 colR = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2( shift,  shift * 0.32))).rgb);
+        vec3 colG = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2( 0.0,   -shift * 0.95))).rgb);
+        vec3 colB = liftShadows(texture(iChannel0, safeUV(sampleUV - vec2( shift, -shift * 0.24))).rgb);
+        vec3 prism = vec3(colR.r, colG.g, colB.b);
+        vec3 candy = vec3(
+            0.5 + 0.5 * sin(iTime * 2.10 + normI * 34.0 + sampleUV.x * 17.0),
+            0.5 + 0.5 * sin(iTime * 2.40 + normI * 30.0 + sampleUV.x * 21.0 + 2.094),
+            0.5 + 0.5 * sin(iTime * 2.70 + normI * 26.0 + sampleUV.x * 19.0 + 4.188)
+        );
+        vec3 alt = prism.gbr * vec3(1.35, 1.08, 1.42);
+        lineCol = prism * vec3(2.42, 2.18, 2.48) + candy * 1.65 + alt * 0.52;
     }
 
     float scan = 0.97 + 0.03 * sin((sampleBase.y * iResolution.y) * PI);
@@ -380,6 +443,15 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     color += lineCol * scaffold * (0.06 + 0.14 * luma);
     color *= scan * grille * mix(0.72, 1.0, vignette);
     color *= 1.34;
+    if (uColorMode == 3) color *= 1.12;
+    else if (uColorMode == 4) color *= 1.18;
+    else if (uColorMode == 5) color *= 1.28;
+
+    if (uColorMode >= 3) {
+        float lum = getLuma(color);
+        float sat = (uColorMode == 5) ? 1.70 : ((uColorMode == 4) ? 1.52 : 1.40);
+        color = mix(vec3(lum), color, sat);
+    }
     color += noise;
     return clamp(color, 0.0, 1.0);
 }
