@@ -114,7 +114,7 @@ loc_motion_level = -1
 loc_presence_scale = -1
 loc_presence_cx = -1
 loc_presence_cy = -1
-current_rutt_color_mode = 0
+current_rutt_color_mode = 2
 current_ascii_color_mode = 0
 current_pixelart_color_mode = 1
 current_rutt_wave = 0.40
@@ -166,7 +166,7 @@ PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
 
-RUTT_COLOR_MODE_NAMES = ['Wire Mono', 'Phosphor', 'Mega Wave', 'Prism Surge']
+RUTT_COLOR_MODE_NAMES = ['Wire Mono', 'Phosphor', 'Prism Warp', 'Mega Wave', 'Prism Surge']
 ASCII_COLOR_MODE_NAMES = ['Symbol Color', 'Symbol Mono', 'Dense Mono Mix', 'Dense Color Mix']
 PIXELART_COLOR_MODE_NAMES = ['Pixel Native', 'DMG Classic', 'Toxic Candy']
 PIXELART_MODE_DEFAULT_SIZES = [4.0, 6.0, 8.0]

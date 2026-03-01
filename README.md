@@ -76,8 +76,9 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 |---|---|---|---|---|
 | 00.01 | Wire Mono | B/W | Classic white scanline wireframe on black background. | White, black |
 | 00.02 | Phosphor | Analog RGB | P31-style green phosphor, luma drives line intensity and glow. | Phosphor green |
-| 00.03 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
-| 00.04 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
+| 00.03 | Prism Warp | Prism Warp | Subtle chromatic RGB split with camera color bleed — the signature default look. | Camera colors, cyan tint |
+| 00.04 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
+| 00.05 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
 
 #### 01 - ASCII Cam
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
@@ -158,6 +159,7 @@ Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette da
 |---|---|
 | Wire Mono | Classic white scan lines on black — the gold standard |
 | Phosphor | P31 green phosphor tube — luma drives intensity, shadows stay green |
+| Prism Warp | Subtle RGB split with camera bleed — the signature default |
 | Mega Wave | Ultra-bright displaced blend with moving candy ribbons (extreme) |
 | Prism Surge | Maximum prism split and high-energy distortion (extreme) |
 
@@ -394,7 +396,7 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | View mode | 16:9 |
 | Mirror | ON (because the camera should stop gaslighting you) |
 | Effect | Rutt-Etra CRT |
-| Rutt color | 00.01 Wire Mono |
+| Rutt color | 00.03 Prism Warp |
 | ASCII color | 01.01 Symbol Color |
 | Pixel Art color | 02.02 DMG Classic |
 | Raster Vision color | 03.01 Thermal Raster |
