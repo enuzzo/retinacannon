@@ -76,10 +76,8 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 |---|---|---|---|---|
 | 00.01 | Wire Mono | B/W | Classic white scanline wireframe on black background. | White, black |
 | 00.02 | Phosphor | Analog RGB | P31-style green phosphor, luma drives line intensity and glow. | Phosphor green |
-| 00.03 | Amber Trace | Amber Trace | Forest-green shadows rising to warm gold highlights — vector display warmth. | Forest green, lime, gold |
-| 00.04 | Scope Burn | Scope Burn | Electric oscilloscope trace — deep blue to bright cyan-white, luma drives glow. Subject readable as displaced scan-line waveforms. | Electric blue, cyan, white |
-| 00.05 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
-| 00.06 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
+| 00.03 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
+| 00.04 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
 
 #### 01 - ASCII Cam
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
@@ -160,8 +158,6 @@ Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette da
 |---|---|
 | Wire Mono | Classic white scan lines on black — the gold standard |
 | Phosphor | P31 green phosphor tube — luma drives intensity, shadows stay green |
-| Amber Trace | Forest green on darks, warm gold on highlights — vector display warmth |
-| Scope Burn | Electric blue oscilloscope trace — deep blue to cyan-white, pulsar waveform feel |
 | Mega Wave | Ultra-bright displaced blend with moving candy ribbons (extreme) |
 | Prism Surge | Maximum prism split and high-energy distortion (extreme) |
 
@@ -398,7 +394,7 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | View mode | 16:9 |
 | Mirror | ON (because the camera should stop gaslighting you) |
 | Effect | Rutt-Etra CRT |
-| Rutt color | 00.03 Amber Trace |
+| Rutt color | 00.01 Wire Mono |
 | ASCII color | 01.01 Symbol Color |
 | Pixel Art color | 02.02 DMG Classic |
 | Raster Vision color | 03.01 Thermal Raster |

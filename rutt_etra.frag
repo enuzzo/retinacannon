@@ -348,13 +348,8 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleUVC = safeUV(sampleUV);
     vec3 sampleColC = texture(iChannel0, sampleUVC).rgb;
     float lumaRaw;
-    if (uColorMode == 1 || uColorMode == 3) {
+    if (uColorMode == 1) {
         lumaRaw = getLuma(sampleColC);
-    } else if (uColorMode == 2) {
-        lumaRaw =
-            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb) * 0.25 +
-            getLuma(sampleColC) * 0.50 +
-            getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.25;
     } else {
         lumaRaw =
             getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px * 2.0, 0.0))).rgb) * 0.1 +
@@ -366,10 +361,8 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float luma = liftShadowLuma(lumaRaw);
 
     float waveScale = 1.0;
-    if (uColorMode == 2) waveScale = 1.8;
-    else if (uColorMode == 3) waveScale = 2.0;
-    else if (uColorMode == 4) waveScale = 15.0;
-    else if (uColorMode == 5) waveScale = 22.0;
+    if (uColorMode == 2) waveScale = 15.0;
+    else if (uColorMode == 3) waveScale = 22.0;
     float lineY = normI + luma * (EXTRUSION * uRuttWave * waveScale);
     float dist = abs(sampleBase.y - lineY);
     float baseDist = abs(sampleBase.y - normI);
@@ -379,8 +372,8 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, baseDist);
     float haze = (1.0 - smoothstep(0.0, LINE_WIDTH * 12.0, dist)) * 0.08 * luma;
     float modeEnergy = 1.0;
-    if (uColorMode == 4) modeEnergy = 1.58;
-    else if (uColorMode == 5) modeEnergy = 1.84;
+    if (uColorMode == 2) modeEnergy = 1.58;
+    else if (uColorMode == 3) modeEnergy = 1.84;
     lineAlpha *= modeEnergy;
     glow *= modeEnergy * 1.10;
     haze *= modeEnergy * 1.20;
@@ -393,13 +386,6 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
         // Phosphor: P31-style green CRT phosphor, luma drives line intensity and glow
         lineCol = vec3(0.04, 0.85 + luma * 0.55, 0.06);
     } else if (uColorMode == 2) {
-        // Amber Trace: forest-green shadows rising to warm gold highlights — vector display warmth
-        lineCol = mix(vec3(0.06, 0.62, 0.06), vec3(0.95, 0.82, 0.06), pow(luma, 1.8));
-    } else if (uColorMode == 3) {
-        // Scope Burn: electric oscilloscope trace — deep blue to bright cyan-white
-        // Subject silhouette readable through luminance-displaced scan lines (Unknown Pleasures ref)
-        lineCol = mix(vec3(0.05, 0.18, 0.72), vec3(0.55, 0.90, 1.00), pow(luma, 0.8));
-    } else if (uColorMode == 4) {
         // Mega Wave: bright multi-sample blend with moving candy ribbons
         vec3 colorUp = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(0.0, 2.0 / LINES))).rgb);
         vec3 colorDn = liftShadows(texture(iChannel0, safeUV(sampleUV - vec2(0.0, 2.0 / LINES))).rgb);
@@ -439,14 +425,12 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     color *= scan * grille * mix(0.72, 1.0, vignette);
     color *= 1.34;
     if (uColorMode == 1) color *= 1.12;
-    else if (uColorMode == 2) color *= 1.10;
-    else if (uColorMode == 3) color *= 1.15;
-    else if (uColorMode == 4) color *= 1.18;
-    else if (uColorMode == 5) color *= 1.28;
+    else if (uColorMode == 2) color *= 1.18;
+    else if (uColorMode == 3) color *= 1.28;
 
-    if (uColorMode >= 4) {
+    if (uColorMode >= 2) {
         float lum = getLuma(color);
-        float sat = (uColorMode == 5) ? 1.70 : 1.52;
+        float sat = (uColorMode == 3) ? 1.70 : 1.52;
         color = mix(vec3(lum), color, sat);
     }
     color += noise;
