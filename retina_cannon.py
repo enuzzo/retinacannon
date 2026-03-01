@@ -125,9 +125,15 @@ current_raster_size = 12.0
 current_datamosh_color_mode = 0
 current_vhsburn_color_mode = 0
 current_poster_color_mode = 0
+current_lensdot_color_mode = 0
+current_mirrorzoom_color_mode = 0
+current_chromatrail_color_mode = 0
 current_datamosh_amount = 2.0
 current_vhs_tracking = 1.5
 current_poster_levels = 4.0
+current_lensdot_detail = 2.6
+current_mirrorzoom_amount = 0.80
+current_chromatrail_intensity = 1.20
 DATAMOSH_AMOUNT_STEP = 0.25
 DATAMOSH_AMOUNT_MIN = 0.5
 DATAMOSH_AMOUNT_MAX = 6.0
@@ -137,6 +143,15 @@ VHS_TRACK_MAX = 5.0
 POSTER_LEVEL_STEP = 1.0
 POSTER_LEVEL_MIN = 2.0
 POSTER_LEVEL_MAX = 12.0
+LENSDOT_DETAIL_STEP = 0.20
+LENSDOT_DETAIL_MIN = 1.0
+LENSDOT_DETAIL_MAX = 5.0
+MIRRORZOOM_AMOUNT_STEP = 0.10
+MIRRORZOOM_AMOUNT_MIN = 0.2
+MIRRORZOOM_AMOUNT_MAX = 1.6
+CHROMATRAIL_INTENSITY_STEP = 0.25
+CHROMATRAIL_INTENSITY_MIN = 0.5
+CHROMATRAIL_INTENSITY_MAX = 2.4
 current_effect_mode = 0
 current_view_mode = 0
 current_mirror_view = 1
@@ -159,6 +174,9 @@ RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic B/W', 'C
 DATAMOSH_COLOR_MODE_NAMES = ['RGB Mosh', 'Thermal Glitch', 'Acid Trip', 'Void Codec']
 VHSBURN_COLOR_MODE_NAMES  = ['Signal Melt', 'Night Tape']
 POSTER_COLOR_MODE_NAMES   = ['Warhol Pop', 'Neon Cel', 'Acid Bloom', 'Plasma Burn']
+LENSDOT_COLOR_MODE_NAMES = ['Soft Bevel', 'Hard Bevel', 'Specular Punch']
+MIRRORZOOM_COLOR_MODE_NAMES = ['Pulse', 'Wide Pulse', 'Hyper Pulse']
+CHROMATRAIL_COLOR_MODE_NAMES = ['RGB Trail', 'Neon Trail', 'Thermal Trail']
 EFFECT_MODE_NAMES = [
     'Rutt-Etra CRT',
     'ASCII Cam',
@@ -167,6 +185,9 @@ EFFECT_MODE_NAMES = [
     'Digital Codec Corruption',
     'VHS Tracking Burn',
     'Posterize Glitch Comic',
+    'Lens Dot Bevel (totry 2)',
+    'Mirror Zoom Tiles (totry 1)',
+    'Chromatic Trails (totry 8)',
 ]
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
@@ -673,7 +694,10 @@ def _color_mode_name():
     if current_effect_mode == 3:   return RASTER_COLOR_MODE_NAMES[current_raster_color_mode]
     if current_effect_mode == 4:   return DATAMOSH_COLOR_MODE_NAMES[current_datamosh_color_mode]
     if current_effect_mode == 5:   return VHSBURN_COLOR_MODE_NAMES[current_vhsburn_color_mode]
-    return POSTER_COLOR_MODE_NAMES[current_poster_color_mode]
+    if current_effect_mode == 6:   return POSTER_COLOR_MODE_NAMES[current_poster_color_mode]
+    if current_effect_mode == 7:   return LENSDOT_COLOR_MODE_NAMES[current_lensdot_color_mode]
+    if current_effect_mode == 8:   return MIRRORZOOM_COLOR_MODE_NAMES[current_mirrorzoom_color_mode]
+    return CHROMATRAIL_COLOR_MODE_NAMES[current_chromatrail_color_mode]
 
 def _active_color_mode():
     if current_effect_mode == 0:   return current_rutt_color_mode
@@ -682,12 +706,16 @@ def _active_color_mode():
     if current_effect_mode == 3:   return current_raster_color_mode
     if current_effect_mode == 4:   return current_datamosh_color_mode
     if current_effect_mode == 5:   return current_vhsburn_color_mode
-    return current_poster_color_mode
+    if current_effect_mode == 6:   return current_poster_color_mode
+    if current_effect_mode == 7:   return current_lensdot_color_mode
+    if current_effect_mode == 8:   return current_mirrorzoom_color_mode
+    return current_chromatrail_color_mode
 
 def _set_active_color_mode(mode):
     global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_size
     global current_pixelart_color_mode, current_raster_color_mode
     global current_datamosh_color_mode, current_vhsburn_color_mode, current_poster_color_mode
+    global current_lensdot_color_mode, current_mirrorzoom_color_mode, current_chromatrail_color_mode
     if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
     elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
     elif current_effect_mode == 2:
@@ -696,7 +724,10 @@ def _set_active_color_mode(mode):
     elif current_effect_mode == 3: current_raster_color_mode       = mode % len(RASTER_COLOR_MODE_NAMES)
     elif current_effect_mode == 4: current_datamosh_color_mode     = mode % len(DATAMOSH_COLOR_MODE_NAMES)
     elif current_effect_mode == 5: current_vhsburn_color_mode      = mode % len(VHSBURN_COLOR_MODE_NAMES)
-    else:                          current_poster_color_mode       = mode % len(POSTER_COLOR_MODE_NAMES)
+    elif current_effect_mode == 6: current_poster_color_mode       = mode % len(POSTER_COLOR_MODE_NAMES)
+    elif current_effect_mode == 7: current_lensdot_color_mode      = mode % len(LENSDOT_COLOR_MODE_NAMES)
+    elif current_effect_mode == 8: current_mirrorzoom_color_mode   = mode % len(MIRRORZOOM_COLOR_MODE_NAMES)
+    else:                          current_chromatrail_color_mode  = mode % len(CHROMATRAIL_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
@@ -709,7 +740,10 @@ def _effect_param_label():
     if current_effect_mode == 3:   return f'[RASTER] Dot {int(current_raster_size)}px'
     if current_effect_mode == 4:   return f'[CODEC] Amount {current_datamosh_amount:.2f}x'
     if current_effect_mode == 5:   return f'[VHS] Tracking {current_vhs_tracking:.2f}x'
-    return f'[POSTER] Levels {int(current_poster_levels)}'
+    if current_effect_mode == 6:   return f'[POSTER] Levels {int(current_poster_levels)}'
+    if current_effect_mode == 7:   return f'[DOT] Detail {current_lensdot_detail:.2f}x'
+    if current_effect_mode == 8:   return f'[MIRROR] Zoom {current_mirrorzoom_amount:.2f}x'
+    return f'[TRAIL] Intensity {current_chromatrail_intensity:.2f}x'
 
 def _slugify(text):
     s = ''.join(ch.lower() if ch.isalnum() else '-' for ch in text)
@@ -955,6 +989,12 @@ def on_render(frame, time):
             _d = current_vhs_tracking
         elif current_effect_mode == 6:
             _d = current_poster_levels
+        elif current_effect_mode == 7:
+            _d = current_lensdot_detail
+        elif current_effect_mode == 8:
+            _d = current_mirrorzoom_amount
+        elif current_effect_mode == 9:
+            _d = current_chromatrail_intensity
         else:
             _d = current_ascii_density
         glsl.glUniform1f(loc_ascii_density, c_float(_d))
@@ -1045,6 +1085,7 @@ def keyboard_thread():
     global current_rutt_wave, current_ascii_density, current_pixelart_size
     global current_raster_size
     global current_datamosh_amount, current_vhs_tracking, current_poster_levels
+    global current_lensdot_detail, current_mirrorzoom_amount, current_chromatrail_intensity
     global current_effect_mode, current_view_mode, current_mirror_view, _ctrl_c_requested
     global _shot_deadline, _shot_last_seconds
     import termios
@@ -1113,6 +1154,12 @@ def keyboard_thread():
                         current_vhs_tracking = min(VHS_TRACK_MAX, current_vhs_tracking + VHS_TRACK_STEP)
                     elif current_effect_mode == 6:
                         current_poster_levels = min(POSTER_LEVEL_MAX, current_poster_levels + POSTER_LEVEL_STEP)
+                    elif current_effect_mode == 7:
+                        current_lensdot_detail = min(LENSDOT_DETAIL_MAX, current_lensdot_detail + LENSDOT_DETAIL_STEP)
+                    elif current_effect_mode == 8:
+                        current_mirrorzoom_amount = min(MIRRORZOOM_AMOUNT_MAX, current_mirrorzoom_amount + MIRRORZOOM_AMOUNT_STEP)
+                    elif current_effect_mode == 9:
+                        current_chromatrail_intensity = min(CHROMATRAIL_INTENSITY_MAX, current_chromatrail_intensity + CHROMATRAIL_INTENSITY_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
                     if current_effect_mode == 0:
@@ -1129,6 +1176,12 @@ def keyboard_thread():
                         current_vhs_tracking = max(VHS_TRACK_MIN, current_vhs_tracking - VHS_TRACK_STEP)
                     elif current_effect_mode == 6:
                         current_poster_levels = max(POSTER_LEVEL_MIN, current_poster_levels - POSTER_LEVEL_STEP)
+                    elif current_effect_mode == 7:
+                        current_lensdot_detail = max(LENSDOT_DETAIL_MIN, current_lensdot_detail - LENSDOT_DETAIL_STEP)
+                    elif current_effect_mode == 8:
+                        current_mirrorzoom_amount = max(MIRRORZOOM_AMOUNT_MIN, current_mirrorzoom_amount - MIRRORZOOM_AMOUNT_STEP)
+                    elif current_effect_mode == 9:
+                        current_chromatrail_intensity = max(CHROMATRAIL_INTENSITY_MIN, current_chromatrail_intensity - CHROMATRAIL_INTENSITY_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):
                     # Fallback for terminals that emit ESC...F for this key.
