@@ -56,6 +56,12 @@
 - When adding new effect modes: update `EFFECT_MODE_NAMES`, `_active_color_mode()`, `_set_active_color_mode()`, `_effect_param_label()`, `on_init`, `on_render`, keyboard handler, and `mainImage()` in shader.
 - Blue-skin regression trap: channel-order mismatches (`rgb` vs `bgr`) can affect only some effects while Rutt looks correct. Troubleshoot by comparing the problematic effect against Rutt in the same session and standardize sampling in the new effect path.
 
+## Totry shortlist (2026-03-01)
+- Exclude by dependency mismatch (extra channels/multipass/Shadertoy keyboard): `3.txt`, `4.txt`, `5.txt`, `6.txt`, `7.txt`, `9.txt`.
+- Exclude by likely FPS collapse on RPi with no direct fallback plan: `10.txt`.
+- Remaining practical candidates: `1.txt`, `2.txt`, `8.txt`.
+- Priority order for trials: `2.txt` (strong visual payoff), `1.txt` (easy win), `8.txt` (only with perf guardrails).
+
 ## Pre-flight checklist
 - [ ] Read `MEMORY.md`.
 - [ ] Read the last 2 entries in `SESSION_LOG.md`.

@@ -167,3 +167,32 @@
 - Fix: standardized channel sampling for new effects to `.rgb` and documented explicit RGB/BGR rules in `MEMORY.md`.
 - Concrete verification: user confirmed normal skin tones after the RGB alignment fix; Python syntax check remained clean (`python3 -m py_compile retina_cannon.py`).
 - Prevention: for any new effect, first validate “neutral camera pass” against Rutt default before adding stylized channel operations; treat `.bgr` as opt-in, not default.
+
+### [2026-03-01 02:47] Quick feasibility sweep of `/totry` shader candidates
+- Goal: review all files in root `totry/` and estimate feasibility/difficulty for integration into current Retina Cannon pipeline.
+- Actions taken: enumerated `totry/*.txt` (11 files), inspected each snippet and extracted technical dependencies (`iChannel*`, buffer passes, `iMouse`, Shadertoy keyboard texture). Cross-checked against current runtime constraints (`retina_cannon.py` + `rutt_etra.frag`): single-pass shader path, live camera on `iChannel0`, no active multi-buffer pipeline, no Shadertoy `iChannel3` keyboard map.
+- Errors encountered: none.
+- Fix: n/a (analysis-only pass).
+- Concrete verification:
+  - `totry` content discovered at root with files `1.txt`..`11.txt`.
+  - Quick matrix:
+    - `1.txt`: feasibility high, difficulty low (single-pass, `iChannel0` only).
+    - `2.txt`: feasibility high, difficulty medium-low (single-pass halftone; replace `iMouse` with internal controls).
+    - `3.txt`: feasibility medium, difficulty high (large tutorial shader; depends on font atlas + `iChannel1` video path and heavy refit).
+    - `4.txt`: feasibility low/medium, difficulty very high (explicit Buffer A + image pass, requires ping-pong multipass).
+    - `5.txt`: feasibility medium, difficulty high (depends on `iChannel1` plus Shadertoy keyboard `iChannel3` via `texelFetch`).
+    - `6.txt`: feasibility medium, difficulty medium/high (dual-channel composition + external glitch texture assumptions).
+    - `7.txt`: same shader core as `6.txt` (without prose lines), same estimate.
+    - `8.txt`: feasibility medium/high, difficulty medium (single-pass but performance-sensitive loop on RPi).
+    - `9.txt`: feasibility medium, difficulty medium (needs shift map channel or procedural substitute for `iChannel1`).
+    - `10.txt`: feasibility medium, difficulty high (raymarch + optional shadow loops, strong FPS risk on target hardware).
+    - `11.txt`: notes/spec list, not executable shader code.
+- Prevention: before importing future Shadertoy snippets, classify upfront as `single-pass / multi-pass / multi-channel` to avoid underestimating integration cost.
+
+### [2026-03-01 02:54] Totry shortlist frozen in memory
+- Goal: capture a practical trial shortlist after excluding dependency-heavy and no-fallback FPS-risk candidates.
+- Actions taken: wrote `Totry shortlist (2026-03-01)` section in `MEMORY.md` with explicit exclusions and remaining files.
+- Errors encountered: none.
+- Fix: n/a.
+- Concrete verification: shortlist recorded as `1.txt`, `2.txt`, `8.txt`; exclusions recorded as `3.txt`, `4.txt`, `5.txt`, `6.txt`, `7.txt`, `9.txt`, `10.txt`.
+- Prevention: when new snippets arrive, update shortlist first, then start implementation only from listed candidates.
