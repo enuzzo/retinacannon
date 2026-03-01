@@ -312,10 +312,12 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleUV = vec2(sampleBase.x, normI);
 
     float px = 1.0 / iResolution.x;
+    vec2 sampleUVC = safeUV(sampleUV);
+    vec3 sampleColC = texture(iChannel0, sampleUVC).rgb;
     float lumaRaw =
         getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px * 2.0, 0.0))).rgb) * 0.1 +
         getLuma(texture(iChannel0, safeUV(sampleUV + vec2(-px, 0.0))).rgb) * 0.2 +
-        getLuma(texture(iChannel0, safeUV(sampleUV)).rgb) * 0.4 +
+        getLuma(sampleColC) * 0.4 +
         getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.2 +
         getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb) * 0.1;
     float luma = liftShadowLuma(lumaRaw);
@@ -333,7 +335,7 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, baseDist);
     float haze = (1.0 - smoothstep(0.0, LINE_WIDTH * 12.0, dist)) * 0.08 * luma;
 
-    vec3 camColor = liftShadows(texture(iChannel0, safeUV(sampleUV)).rgb);
+    vec3 camColor = liftShadows(sampleColC);
     vec3 lineCol;
     if (uColorMode == 0) {
         lineCol = vec3(1.08);
@@ -432,9 +434,9 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 
     vec3 tint;
     if (uColorMode == 0) {
-        tint = camLifted;          // Color symbols
+        tint = camLifted;          // Symbol Color
     } else if (uColorMode == 1) {
-        tint = vec3(boosted);      // Monochrome symbols
+        tint = vec3(boosted);      // Symbol Mono
     } else if (uColorMode == 2) {
         tint = vec3(boosted);      // Dense Mono Mix — monochrome, not inverted
     } else {
@@ -456,8 +458,8 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
 // ── Pixel Art ──────────────────────────────────────────────────────────────
 //
 //  uColorMode:
-//    0  Full Color   — camera pixelated, colors corrected (BGR→RGB)
-//    1  Game Boy     — DMG-01 four-shade green palette + LCD pixel gap
+//    0  Pixel Native — camera pixelated, colors corrected (BGR→RGB)
+//    1  DMG Classic  — DMG-01 four-shade green palette + LCD pixel gap
 //    2  Toxic Candy  — neon candy palette with rounded pixel corners
 //
 //  uPixelSize: block edge in screen pixels (4 – 48)
@@ -507,11 +509,11 @@ vec3 renderPixelArt(vec2 uv, vec2 fragCoord) {
     vec3 col;
 
     if (uColorMode == 0) {
-        // ── Full Color ──────────────────────────────────────────────────────
+        // ── Pixel Native ────────────────────────────────────────────────────
         col = raw;
 
     } else if (uColorMode == 1) {
-        // ── Game Boy DMG-01 ─────────────────────────────────────────────────
+        // ── DMG Classic (Game Boy style) ───────────────────────────────────
         int lvl = clamp(int(floor(luma * 4.0)), 0, 3);
         if      (lvl == 0) col = vec3(0.059, 0.220, 0.059);  // darkest
         else if (lvl == 1) col = vec3(0.188, 0.384, 0.188);
@@ -572,7 +574,7 @@ float edgeLuma4(vec2 uv, float stepUV) {
 //  uColorMode:
 //    0  Thermal Raster   — blue cold / red hot
 //    1  Thermal Inverted — red cold / blue hot
-//    2  Comic B/W        — halftone ink with edge lines
+//    2  Comic Ink Mono   — halftone ink with edge lines
 //    3  Comic Pastel     — soft quantized halftone
 //    4  Vibrant Pop      — saturated comic print
 //

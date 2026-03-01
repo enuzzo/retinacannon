@@ -39,7 +39,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 *(Sprinkled with emojis because let's face it: reading is hard, and a proper TL;DR needs them—kind of like a toddler needing a picture book instead of actual text).*
 
 * 📷 **The Pipeline:** Live Pi Cam → one GLSL Shader → Bare-Metal GPU. No desktop environment, no X11 bloat, zero compositor bullshit. Just pure graphical violence injected straight into the display hardware.
-* ⌨️ **The Controls:** Mash `Space` to cycle through 7 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
+* ⌨️ **The Controls:** Mash `Space` to cycle through 10 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
 * 🚀 **The Execution:** Run `./start_cannon.sh`, point the lens at a human face, and instantly generate pretentious living-room glitch art.
 * 💥 **The Dependencies:** You need a Raspberry Pi, a camera, and `kms-glsl`. If `glsl.so` is missing, the whole thing violently crashes and burns on launch. As it rightfully should.
 * 🔌 **The Flex:** Plug in HDMI + AC at a party, step back, and let everyone assume you spent six agonizing weeks coding a custom cyber-art installation.
@@ -48,7 +48,105 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ## Effects
 
-Seven effects, all in a single shader, switchable live with `Space`:
+Ten effects, all in a single shader, switchable live with `Space`:
+
+| ID | Effect |
+|---|---|
+| 00 | Rutt-Etra CRT |
+| 01 | ASCII Cam |
+| 02 | Pixel Art |
+| 03 | Raster Vision |
+| 04 | Digital Codec Corruption |
+| 05 | VHS Tracking Burn |
+| 06 | Posterize Glitch Comic |
+| 07 | Lens Dot Bevel |
+| 08 | Mirror Zoom Tiles |
+| 09 | Chromatic Trails |
+
+### Canonical Sub-Effect Catalog (EE.MM)
+
+Use `EE.MM` as the canonical ID:
+- `EE` = effect ID (`00..09`)
+- `MM` = sub-effect/color-mode index (`01..N`)
+
+This is the reference to communicate changes, cleanup tasks, and future renames without ambiguity.
+
+#### 00 - Rutt-Etra CRT
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 00.01 | Wire Mono | B/W | Classic white scanline wireframe on black background. | White, black |
+| 00.02 | Analog RGB | Colors | Camera-faithful colored scanlines with analog CRT feel. | Natural RGB, skin tones |
+| 00.03 | Prism Warp | Prism Warp | RGB split with subtle chromatic aberration. | Cyan, magenta, blue |
+| 00.04 | Acid Melt | Acid Melt | Psychedelic melt with stronger displacement and swirl. | Lime, magenta, electric blue |
+| 00.05 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
+| 00.06 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
+
+#### 01 - ASCII Cam
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 01.01 | Symbol Color | Color symbols | Symbol-only ASCII with source color preserved. | Source RGB, warm highlights |
+| 01.02 | Symbol Mono | Monochrome symbols | Symbol-only ASCII in luminance grayscale. | White, gray, black |
+| 01.03 | Dense Mono Mix | Dense Mono Mix | Dense letters+symbols mix (70/30), monochrome. | White, gray, black |
+| 01.04 | Dense Color Mix | Dense Color Mix | Dense letters+symbols mix (70/30), full color. | Source RGB, teal, orange |
+
+#### 02 - Pixel Art
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 02.01 | Pixel Native | Full Color | Clean pixelation with corrected camera color. | Source RGB |
+| 02.02 | DMG Classic | Game Boy | DMG-style green palette with LCD pixel gap look. | Dark green, olive, pale lime |
+| 02.03 | Toxic Candy | Toxic Candy | Neon quantized palette with rounded pixel corners. | Toxic green, cyan, candy magenta, cream |
+
+#### 03 - Raster Vision
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 03.01 | Thermal Raster | Thermal Raster | Halftone thermal dots, blue-cold to red-hot. | Blue, cyan, yellow, red |
+| 03.02 | Thermal Inverted | Thermal Inverted | Thermal mapping inverted (hot/cold flipped). | Red, orange, blue |
+| 03.03 | Comic Ink Mono | Comic B/W | Black-ink halftone with edge lines. | Black, off-white |
+| 03.04 | Comic Pastel | Comic Pastel | Posterized pastel halftone comic treatment. | Peach, mint, light blue, cream |
+| 03.05 | Vibrant Pop | Vibrant Pop | Saturated pop-print raster with strong contrast edges. | Red, cyan, yellow, deep black |
+
+#### 04 - Digital Codec Corruption
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 04.01 | RGB Mosh | RGB Mosh | Macroblock jumps plus chromatic smear artifacts. | Red, green, blue, glitch purple |
+| 04.02 | Thermal Glitch | Thermal Glitch | Corruption mapped to heat-like thermal look. | Blue, cyan, yellow, red |
+| 04.03 | Acid Trip | Acid Trip | Hue-rotated glitch bursts with neon corruption zones. | Lime, magenta, violet |
+| 04.04 | Void Codec | Void Codec | Corrupted macroblocks collapse into black voids. | Black, white edges, cold blue |
+
+#### 05 - VHS Tracking Burn
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 05.01 | Signal Melt | Signal Melt | Strong RGB channel separation and tracking melt. | Red, green, blue streaks |
+| 05.02 | Night Tape | Night Tape | Security-cam phosphor style with heavy tape noise. | Phosphor green, black, gray |
+
+#### 06 - Posterize Glitch Comic
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 06.01 | Warhol Pop | Warhol Pop | Hard poster levels with bold pop palette swaps. | Red, yellow, cyan, violet, lime |
+| 06.02 | Neon Cel | Neon Cel | Neon edge ink on dark cel-style background. | Cyan, magenta, yellow, black |
+| 06.03 | Acid Bloom | Acid Bloom | Animated HSV color cycling over quantized levels. | Full rainbow spectrum |
+| 06.04 | Plasma Burn | Plasma Burn | Plasma-like animated banding with comic edges. | Magenta, orange, electric blue |
+
+#### 07 - Lens Dot Bevel
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 07.01 | Soft Bevel | Soft Bevel | Dot-lens mosaic with soft bevel and subtle specular. | Neutral highlights, source hues |
+| 07.02 | Hard Bevel | Hard Bevel | Sharper bevel profile and stronger shape contrast. | Bright highlights, deeper shadows |
+| 07.03 | Specular Punch | Specular Punch | High specular punch for glossy bead-like look. | White hotspots, source hues |
+
+#### 08 - Mirror Zoom Tiles
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 08.01 | Pulse | Pulse | Mirrored tile zoom pulse, balanced motion. | Source RGB, mirrored symmetry |
+| 08.02 | Wide Pulse | Wide Pulse | Broader pulse and larger tile rhythm. | Source RGB, wider bands |
+| 08.03 | Hyper Pulse | Hyper Pulse | Faster, denser tile pulse and stronger zoom energy. | Source RGB, high-motion streaks |
+
+#### 09 - Chromatic Trails
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 09.01 | RGB Trail | RGB Trail | Multi-sample chromatic trail accumulation. | Red, green, blue |
+| 09.02 | Neon Trail | Neon Trail | Neon remap variant with stronger synthetic vibe. | Neon green, cyan, pink |
+| 09.03 | Thermal Trail | Thermal Trail | Trail output mapped to thermal pseudo-color. | Blue, yellow, red |
 
 ### Rutt-Etra CRT
 
@@ -60,11 +158,11 @@ Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette da
 
 | Mode | Look |
 |---|---|
-| B/W | Classic white scan lines on black |
-| Colors | Camera-accurate color per scan line |
+| Wire Mono | Classic white scan lines on black |
+| Analog RGB | Camera-accurate color per scan line |
 | Prism Warp | RGB channel split — subtle chromatic aberration |
 | Acid Melt | Swirling color melt, channel-shifted BGRs — ×6 displacement |
-| Mega Wave | Colors mode blurred across neighboring scans — ×10 displacement |
+| Mega Wave | Analog RGB mode blurred across neighboring scans — ×10 displacement |
 | Prism Surge | Prism Warp with extreme channel separation — ×14 displacement |
 
 ### ASCII Cam
@@ -73,8 +171,8 @@ Every camera pixel gets mapped to a glyph from an 8×8 bitmap font hardcoded ins
 
 | Mode | Look |
 |---|---|
-| Color symbols | Density-scaled symbols, camera-accurate color |
-| Monochrome symbols | Same, luminance grayscale |
+| Symbol Color | Density-scaled symbols, camera-accurate color |
+| Symbol Mono | Same, luminance grayscale |
 | Dense Mono Mix | 2× density, 70% letters + 30% symbols, monochrome |
 | Dense Color Mix | 2× density, 70% letters + 30% symbols, camera color |
 
@@ -84,9 +182,11 @@ The camera downsampled to a grid of blocks, each rendered as a single pixel of a
 
 | Mode | Look | Default size |
 |---|---|---|
-| Full Color | Pixelated camera, colors corrected | 4px |
-| Game Boy | DMG-01 four-shade green + authentic LCD pixel gap | 6px |
+| Pixel Native | Pixelated camera, colors corrected | 4px |
+| DMG Classic | DMG-01 four-shade green + authentic LCD pixel gap | 6px |
 | Toxic Candy | Neon candy palette — aggressively quantized, with rounded pixel corners | 8px |
+
+Default at startup for Pixel Art is **DMG Classic** (green blocks), even if it is mode index `1` in the list above.
 
 ### Raster Vision
 
@@ -97,7 +197,7 @@ Dedicated halftone/raster effect: thermal and comic looks rendered as variable-s
 |---|---|
 | Thermal Raster | Blue-cold / red-hot raster dots |
 | Thermal Inverted | Red-cold / blue-hot raster dots |
-| Comic B/W | Black-ink halftone + edge lines |
+| Comic Ink Mono | Black-ink halftone + edge lines |
 | Comic Pastel | Soft posterized pastel halftone |
 | Vibrant Pop | Saturated comic-print style, saturation-boosted to prevent channel clipping |
 
@@ -138,6 +238,42 @@ Hard luminance quantization + edge ink detection + random horizontal band glitch
 
 `←` / `→` controls quantization levels (2–12).
 
+### Lens Dot Bevel
+
+Disc mosaic with beveled shading and specular highlights, sampled from the live camera.
+
+| Mode | Look |
+|---|---|
+| Soft Bevel | Gentle bevel and lower specular |
+| Hard Bevel | Sharper bevel profile |
+| Specular Punch | Strong highlight and crisp bead look |
+
+`←` / `→` controls detail (1.0–5.0).
+
+### Mirror Zoom Tiles
+
+Tiled mirror zoom with pulsating scale and mode-dependent tile size.
+
+| Mode | Look |
+|---|---|
+| Pulse | Balanced zoom pulse |
+| Wide Pulse | Wider, smoother pulse |
+| Hyper Pulse | Stronger pulse and denser tiling |
+
+`←` / `→` controls zoom amount (0.2–1.6).
+
+### Chromatic Trails
+
+Temporal-looking chromatic accumulation with scanline-style trail stacking.
+
+| Mode | Look |
+|---|---|
+| RGB Trail | Classic multicolor trail |
+| Neon Trail | G/B/R remap with stronger neon feel |
+| Thermal Trail | Trail remapped to thermal palette |
+
+`←` / `→` controls trail intensity (0.5–2.4).
+
 ---
 
 ## How it works
@@ -164,7 +300,7 @@ capture thread ──(threading.Lock)──▶ latest frame
 
 **Render**: `kms-glsl`'s C loop fires a Python callback every frame. The callback uploads the texture and pushes all uniforms to the GPU.
 
-**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, seven completely different visual systems, routed by `uEffectMode`.
+**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, ten visual systems, routed by `uEffectMode`.
 
 **Keyboard**: a separate thread reads `/dev/tty` in raw mode (`ICANON`, `ECHO`, `ISIG` all disabled). Ctrl+C arrives as `\x03` bytes and triggers graceful shutdown. `SIGTERM` and `SIGHUP` are also handled — kill from SSH works cleanly.
 
@@ -219,14 +355,16 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 
 | Key | Action |
 |---|---|
-| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Raster Vision → Digital Codec Corruption → VHS Tracking Burn → Posterize Glitch Comic |
+| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Raster Vision → Digital Codec Corruption → VHS Tracking Burn → Posterize Glitch Comic → Lens Dot Bevel → Mirror Zoom Tiles → Chromatic Trails |
 | `S` | 3-second countdown then save rendered screenshot to `shots/` |
 | `↑` / `↓` | Cycle color mode (per-effect, independent) |
-| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Raster: dot size · Codec: corruption amount · VHS: tracking · Poster: levels |
+| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Raster: dot size · Codec: corruption amount · VHS: tracking · Poster: levels · Dot: detail · Mirror: zoom · Trail: intensity |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |
 | `M` | Toggle horizontal mirror of current view |
 | `F` | Toggle FPS logging to terminal |
 | `Ctrl+C` | Clean shutdown |
+
+Runtime status now prints explicit IDs (for example `EFFECT 02`, `COLOR 02.02/03`) so scene ordering stays unambiguous during tuning, cleanup, and screenshot selection.
 
 Arrow keys handle both `ESC [` and `ESC O` prefixes. Because terminal emulators are ungoverned.
 
@@ -235,7 +373,7 @@ Arrow keys handle both `ESC [` and `ESC O` prefixes. Because terminal emulators 
 Press `S`, get a dramatic 3-second terminal countdown, then a frame dump of whatever glorious visual chaos is on screen.
 
 Files are saved to `shots/` as:
-`YYYYMMDD_HHMMSS_<effect>_<variant>_<view>_mirror-(on|off).png`
+`YYYYMMDD_HHMMSS_<EE-effect-name>_<EE-MM-variant-name>_<view>_mirror-(on|off).png`
 
 So yes, your shader experiments are timestamped evidence now. Very professional.
 
@@ -260,20 +398,26 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | View mode | 16:9 |
 | Mirror | ON (because the camera should stop gaslighting you) |
 | Effect | Rutt-Etra CRT |
-| Rutt color | Prism Warp |
-| ASCII color | Color symbols |
-| Pixel Art color | Game Boy |
-| Raster Vision color | Thermal Raster |
-| Codec color | RGB Mosh |
-| VHS color | Signal Melt |
-| Poster color | Warhol Pop |
+| Rutt color | 00.03 Prism Warp |
+| ASCII color | 01.01 Symbol Color |
+| Pixel Art color | 02.02 DMG Classic |
+| Raster Vision color | 03.01 Thermal Raster |
+| Codec color | 04.01 RGB Mosh |
+| VHS color | 05.01 Signal Melt |
+| Poster color | 06.01 Warhol Pop |
+| Lens Dot color | 07.01 Soft Bevel |
+| Mirror Zoom color | 08.01 Pulse |
+| Chromatic Trails color | 09.01 RGB Trail |
 | Rutt wave | 0.40 |
 | ASCII density | 3.00 |
-| Pixel block size | 6px (Game Boy default) |
+| Pixel block size | 6px (DMG Classic default) |
 | Raster dot size | 12px |
 | Codec amount | 2.0 |
 | VHS tracking | 1.5 |
 | Poster levels | 4 |
+| Lens Dot detail | 2.6 |
+| Mirror Zoom amount | 0.80 |
+| Chromatic Trails intensity | 1.20 |
 | FPS baseline | ~20 FPS |
 
 ---

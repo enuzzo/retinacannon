@@ -166,11 +166,11 @@ PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
 
-RUTT_COLOR_MODE_NAMES = ['B/W', 'Colors', 'Prism Warp', 'Acid Melt', 'Mega Wave', 'Prism Surge']
-ASCII_COLOR_MODE_NAMES = ['Color symbols', 'Monochrome symbols', 'Dense Mono Mix', 'Dense Color Mix']
-PIXELART_COLOR_MODE_NAMES = ['Full Color', 'Game Boy', 'Toxic Candy']
+RUTT_COLOR_MODE_NAMES = ['Wire Mono', 'Analog RGB', 'Prism Warp', 'Acid Melt', 'Mega Wave', 'Prism Surge']
+ASCII_COLOR_MODE_NAMES = ['Symbol Color', 'Symbol Mono', 'Dense Mono Mix', 'Dense Color Mix']
+PIXELART_COLOR_MODE_NAMES = ['Pixel Native', 'DMG Classic', 'Toxic Candy']
 PIXELART_MODE_DEFAULT_SIZES = [4.0, 6.0, 8.0]
-RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic B/W', 'Comic Pastel', 'Vibrant Pop']
+RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic Ink Mono', 'Comic Pastel', 'Vibrant Pop']
 DATAMOSH_COLOR_MODE_NAMES = ['RGB Mosh', 'Thermal Glitch', 'Acid Trip', 'Void Codec']
 VHSBURN_COLOR_MODE_NAMES  = ['Signal Melt', 'Night Tape']
 POSTER_COLOR_MODE_NAMES   = ['Warhol Pop', 'Neon Cel', 'Acid Bloom', 'Plasma Burn']
@@ -185,9 +185,9 @@ EFFECT_MODE_NAMES = [
     'Digital Codec Corruption',
     'VHS Tracking Burn',
     'Posterize Glitch Comic',
-    'Lens Dot Bevel (totry 2)',
-    'Mirror Zoom Tiles (totry 1)',
-    'Chromatic Trails (totry 8)',
+    'Lens Dot Bevel',
+    'Mirror Zoom Tiles',
+    'Chromatic Trails',
 ]
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
@@ -210,6 +210,8 @@ _shot_deadline = None
 _shot_last_seconds = None
 SHOT_COUNTDOWN_SEC = 3.0
 _splash_seconds = 5
+_bench_seconds = max(0.0, float(os.environ.get('RETINA_BENCH_SECONDS', '0') or 0))
+_bench_effect = os.environ.get('RETINA_BENCH_EFFECT', '')
 
 _BOOT_LINES = [
     'GREETINGS TO: everyone who knows why the tracker crashed at 4AM. you know who you are.',
@@ -258,6 +260,16 @@ _SHUTDOWN_LINES = [
 ]
 
 _BLOCK_CHARS = '░▒▓█▓▒░'
+
+if _bench_effect.strip():
+    try:
+        _bench_idx = int(_bench_effect)
+        if 0 <= _bench_idx < len(EFFECT_MODE_NAMES):
+            current_effect_mode = _bench_idx
+    except Exception:
+        pass
+if _bench_seconds > 0.0:
+    current_show_fps = 1
 
 ANSI_RESET = '\033[0m'
 ANSI_BOLD = '\033[1m'
@@ -711,6 +723,31 @@ def _active_color_mode():
     if current_effect_mode == 8:   return current_mirrorzoom_color_mode
     return current_chromatrail_color_mode
 
+def _effect_code():
+    return f'{current_effect_mode:02d}'
+
+def _subeffect_code(mode=None):
+    m = _active_color_mode() if mode is None else int(mode)
+    return f'{current_effect_mode:02d}.{m + 1:02d}'
+
+def _effect_display_name():
+    return f'{_effect_code()} {EFFECT_MODE_NAMES[current_effect_mode]}'
+
+def _subeffect_display_name(mode=None):
+    return f'{_subeffect_code(mode)} {_color_mode_name()}'
+
+def _active_color_mode_count():
+    if current_effect_mode == 0:   return len(RUTT_COLOR_MODE_NAMES)
+    if current_effect_mode == 1:   return len(ASCII_COLOR_MODE_NAMES)
+    if current_effect_mode == 2:   return len(PIXELART_COLOR_MODE_NAMES)
+    if current_effect_mode == 3:   return len(RASTER_COLOR_MODE_NAMES)
+    if current_effect_mode == 4:   return len(DATAMOSH_COLOR_MODE_NAMES)
+    if current_effect_mode == 5:   return len(VHSBURN_COLOR_MODE_NAMES)
+    if current_effect_mode == 6:   return len(POSTER_COLOR_MODE_NAMES)
+    if current_effect_mode == 7:   return len(LENSDOT_COLOR_MODE_NAMES)
+    if current_effect_mode == 8:   return len(MIRRORZOOM_COLOR_MODE_NAMES)
+    return len(CHROMATRAIL_COLOR_MODE_NAMES)
+
 def _set_active_color_mode(mode):
     global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_size
     global current_pixelart_color_mode, current_raster_color_mode
@@ -731,7 +768,7 @@ def _set_active_color_mode(mode):
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
-    print(f'\r[COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
+    print(f'\r[COLOR {_subeffect_code()}/{_active_color_mode_count():02d}] {_color_mode_name()} | {_effect_param_label()}        ')
 
 def _effect_param_label():
     if current_effect_mode == 0:   return f'[RUTT] Wave {current_rutt_wave:.2f}x'
@@ -761,8 +798,8 @@ def _save_screenshot_now():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    effect = _slugify(EFFECT_MODE_NAMES[current_effect_mode])
-    variant = _slugify(_color_mode_name())
+    effect = f'{_effect_code()}-{_slugify(EFFECT_MODE_NAMES[current_effect_mode])}'
+    variant = f'{_subeffect_code().replace(".", "-")}-{_slugify(_color_mode_name())}'
     view = _slugify(VIEW_MODE_NAMES[current_view_mode])
     mirror = 'mirror-on' if current_mirror_view else 'mirror-off'
     png_path = out_dir / f'{stamp}_{effect}_{variant}_{view}_{mirror}.png'
@@ -852,7 +889,7 @@ def _print_startup_banner():
     if 'uptime'   in st: print(stat_row('Uptime',  st['uptime']))
     print(stat_row('Camera',   f'{CAM_W} × {CAM_H} BGR888'))
     print(stat_row('Shader',   _shader_name or 'rutt_etra.frag'))
-    print(stat_row('Effect',   f'{EFFECT_MODE_NAMES[current_effect_mode]} · {_color_mode_name()}'))
+    print(stat_row('Effect',   f'{_effect_display_name()} · {_subeffect_display_name()}'))
     print(_styled('  ╚' + '═' * 51 + '╝', ANSI_MAGENTA, bold=True))
     print()
 
@@ -885,6 +922,9 @@ def _print_shutdown_banner(reason):
         print(f'  {_styled("Session", ANSI_DIM)} {_styled(duration, ANSI_WHITE, bold=True)}'
               f'  {_styled("  Frames ~", ANSI_DIM)}{_styled(str(est_frames), ANSI_WHITE, bold=True)}'
               f'  {_styled("  Avg FPS ~", ANSI_DIM)}{_styled(f"{_fps_smoothed:.1f}", ANSI_WHITE, bold=True)}')
+        print()
+    if _bench_seconds > 0.0:
+        print(f'  [BENCH_RESULT] effect={_effect_code()} name="{EFFECT_MODE_NAMES[current_effect_mode]}" subeffect={_subeffect_code()} variant="{_color_mode_name()}" avg_fps={_fps_smoothed:.2f}')
         print()
 
     line = random.choice(_SHUTDOWN_LINES)
@@ -967,6 +1007,8 @@ def on_init(program, width, height):
 
     print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
     _print_startup_banner()
+    if _bench_seconds > 0.0:
+        print(f'[BENCH] running effect {_effect_display_name()} ({_subeffect_display_name()}) for {_bench_seconds:.1f}s')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
@@ -1030,8 +1072,10 @@ def on_render(frame, time):
     _fps_last_time = time
     if current_show_fps and _fps_smoothed > 0.0:
         if _fps_last_report_time is None or (time - _fps_last_report_time) >= 1.0:
-            print(f'\r[FPS] {_fps_smoothed:5.1f} fps | {EFFECT_MODE_NAMES[current_effect_mode]} | {_color_mode_name()}        ')
+            print(f'\r[FPS] {_fps_smoothed:5.1f} fps | {_effect_display_name()} | {_subeffect_display_name()}        ')
             _fps_last_report_time = time
+    if _bench_seconds > 0.0 and time >= _bench_seconds:
+        _request_renderer_stop()
     _tick_screenshot_countdown()
 
 glsl.onInit(on_init)
@@ -1114,7 +1158,7 @@ def keyboard_thread():
                 break
             if ch == ' ':
                 current_effect_mode = (current_effect_mode + 1) % len(EFFECT_MODE_NAMES)
-                print(f'\r[EFFECT] {EFFECT_MODE_NAMES[current_effect_mode]} | [COLOR] {_color_mode_name()} | {_effect_param_label()}        ')
+                print(f'\r[EFFECT {_effect_code()}] {EFFECT_MODE_NAMES[current_effect_mode]} | [COLOR {_subeffect_code()}/{_active_color_mode_count():02d}] {_color_mode_name()} | {_effect_param_label()}        ')
                 continue
             if ch in ('s', 'S'):
                 _shot_deadline = time.monotonic() + SHOT_COUNTDOWN_SEC

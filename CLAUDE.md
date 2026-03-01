@@ -36,12 +36,17 @@ Copyright (c) Netmilk Studio sagl — MIT License.
    - `_presence_cx/cy`: weighted centroid of above-average bright regions
 3. **Render callback** — called by kms-glsl's C render loop; uploads the latest
    camera frame (`glTexSubImage2D`) and sets all uniforms every frame.
-4. **GLSL shader** — `rutt_etra.frag` implements five effects via `uEffectMode`:
+4. **GLSL shader** — `rutt_etra.frag` implements ten effects via `uEffectMode`:
    - **0 Rutt-Etra CRT** — luminance-displaced scan lines, CRT curvature, vignette, noise
    - **1 ASCII Cam** — bitmap font glyphs mapped from luminance (font8x8_basic)
    - **2 Pixel Art** — camera pixelated to a block grid with retro palette modes
-   - **3 Signal Ghost** — interactive generative typography driven by motion/presence
-   - **4 Raster Vision** — dedicated variable-dot raster/halftone modes (thermal + comic looks)
+   - **3 Raster Vision** — variable-dot raster/halftone modes (thermal + comic looks)
+   - **4 Digital Codec Corruption** — macroblock jumps, smears, and glitch palettes
+   - **5 VHS Tracking Burn** — tracking jitter, tape noise, RGB melt variants
+   - **6 Posterize Glitch Comic** — quantized comic style with animated palette variants
+   - **7 Lens Dot Bevel** — beveled disc mosaic look
+   - **8 Mirror Zoom Tiles** — mirrored tile zoom pulses
+   - **9 Chromatic Trails** — stacked chromatic trails
 5. **Keyboard thread** — reads `/dev/tty` in raw mode via `select()` with 0.5s timeout
    (non-blocking so it exits cleanly when `_running` goes False).
 6. **Signal handlers** — `SIGTERM` and `SIGHUP` trigger the same graceful shutdown
@@ -93,10 +98,10 @@ On the target Raspberry Pi:
 | `iChannel0` | sampler2D | Camera texture (BGR uploaded as GL_RGB — `.bgr` swizzle to correct) |
 | `iResolution` | vec2 | Display resolution (set by kms-glsl) |
 | `iTime` | float | Elapsed time in seconds (set by kms-glsl) |
-| `uEffectMode` | int | 0=Rutt, 1=ASCII, 2=PixelArt, 3=SignalGhost, 4=RasterVision |
+| `uEffectMode` | int | 0=Rutt, 1=ASCII, 2=PixelArt, 3=Raster, 4=Codec, 5=VHS, 6=Poster, 7=LensDot, 8=MirrorZoom, 9=ChromaticTrails |
 | `uColorMode` | int | Per-effect color palette index |
 | `uRuttWave` | float | Rutt-Etra displacement multiplier (0.40–3.80) |
-| `uAsciiDensity` | float | ASCII density / Ghost field density (1.0–6.0) |
+| `uAsciiDensity` | float | Shared per-effect scalar (ASCII density / codec amount / VHS tracking / poster levels / lens detail / mirror zoom / trail intensity) |
 | `uPixelSize` | float | Pixel Art block size / Raster dot-cell size in screen pixels (4–48) |
 | `uViewMode` | int | 0=16:9, 1=4:3, 2=Fisheye |
 | `uMirror` | int | 0=off, 1=horizontal mirror of current view |
@@ -110,15 +115,25 @@ On the target Raspberry Pi:
 
 ## Effect color modes
 
-**Rutt-Etra (uEffectMode=0):** B/W · Colors · Prism Warp · Acid Melt
+**Rutt-Etra (uEffectMode=0):** Wire Mono · Analog RGB · Prism Warp · Acid Melt · Mega Wave · Prism Surge
 
-**ASCII Cam (uEffectMode=1):** Color symbols · Monochrome symbols · Inverted mono · Inverted color
+**ASCII Cam (uEffectMode=1):** Symbol Color · Symbol Mono · Dense Mono Mix · Dense Color Mix
 
-**Pixel Art (uEffectMode=2):** Full Color · Game Boy · CGA · Phosphor · Amber
+**Pixel Art (uEffectMode=2):** Pixel Native · DMG Classic · Toxic Candy
 
-**Signal Ghost (uEffectMode=3):** Void · Matrix · Ghost Cam · Neon · Thermal · Chromatic
+**Raster Vision (uEffectMode=3):** Thermal Raster · Thermal Inverted · Comic Ink Mono · Comic Pastel · Vibrant Pop
 
-**Raster Vision (uEffectMode=4):** Thermal Raster · Thermal Inverted · Comic B/W · Comic Pastel · Vibrant Pop
+**Digital Codec Corruption (uEffectMode=4):** RGB Mosh · Thermal Glitch · Acid Trip · Void Codec
+
+**VHS Tracking Burn (uEffectMode=5):** Signal Melt · Night Tape
+
+**Posterize Glitch Comic (uEffectMode=6):** Warhol Pop · Neon Cel · Acid Bloom · Plasma Burn
+
+**Lens Dot Bevel (uEffectMode=7):** Soft Bevel · Hard Bevel · Specular Punch
+
+**Mirror Zoom Tiles (uEffectMode=8):** Pulse · Wide Pulse · Hyper Pulse
+
+**Chromatic Trails (uEffectMode=9):** RGB Trail · Neon Trail · Thermal Trail
 
 ## Runtime controls
 
@@ -127,7 +142,7 @@ On the target Raspberry Pi:
 | Space | Cycle effect mode |
 | S | 3-second countdown then save rendered screenshot to `shots/` |
 | ↑ / ↓ | Cycle color mode (per-effect independent) |
-| ← / → | Adjust effect parameter (wave/density/size/field density/dot size) |
+| ← / → | Adjust active effect parameter (wave/density/size/raster/codec/VHS/poster/lens/mirror/trail) |
 | V | Cycle view mode |
 | M | Toggle horizontal mirror of current view |
 | F | Toggle FPS terminal logging |
@@ -136,11 +151,17 @@ On the target Raspberry Pi:
 ## Defaults
 
 - **Default view**: 16:9
-- **Rutt-Etra** color: `Prism Warp` (index 2)
-- **ASCII Cam** color: `Color symbols` (index 0), density 3.00
-- **Pixel Art** color: `Game Boy` (index 1), block size 16px
-- **Signal Ghost** color: `Void` (index 0), field density 2.0
-- **Raster Vision** color: `Thermal Raster` (index 0), dot size 12px
+- **Default effect**: `00 Rutt-Etra CRT`
+- **Rutt-Etra** color: `00.03 Prism Warp` (index 2)
+- **ASCII Cam** color: `01.01 Symbol Color` (index 0), density 3.00
+- **Pixel Art** color: `02.02 DMG Classic` (index 1), block size 6px
+- **Raster Vision** color: `03.01 Thermal Raster` (index 0), dot size 12px
+- **Digital Codec Corruption** color: `04.01 RGB Mosh` (index 0), amount 2.0
+- **VHS Tracking Burn** color: `05.01 Signal Melt` (index 0), tracking 1.5
+- **Posterize Glitch Comic** color: `06.01 Warhol Pop` (index 0), levels 4
+- **Lens Dot Bevel** color: `07.01 Soft Bevel` (index 0), detail 2.6
+- **Mirror Zoom Tiles** color: `08.01 Pulse` (index 0), zoom 0.80
+- **Chromatic Trails** color: `09.01 RGB Trail` (index 0), intensity 1.20
 - **Rutt wave**: 0.40 (range 0.40–3.80, step 0.10)
 - **FPS baseline**: ~20 FPS on RPi4
 
