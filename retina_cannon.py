@@ -100,8 +100,10 @@ threading.Thread(target=_capture_loop, daemon=True).start()
 
 # ---- Manual GL texture setup ----
 tex_id = None
+tex_prev_id = None
 tex_unit = 0
 loc_channel0 = -1
+loc_channel1 = -1
 loc_color_mode = -1
 loc_rutt_wave = -1
 loc_ascii_density = -1
@@ -143,9 +145,9 @@ VHS_TRACK_MAX = 5.0
 POSTER_LEVEL_STEP = 1.0
 POSTER_LEVEL_MIN = 2.0
 POSTER_LEVEL_MAX = 12.0
-LENSDOT_DETAIL_STEP = 0.20
-LENSDOT_DETAIL_MIN = 1.0
-LENSDOT_DETAIL_MAX = 5.0
+LENSDOT_DETAIL_STEP = 0.25
+LENSDOT_DETAIL_MIN = 0.20
+LENSDOT_DETAIL_MAX = 14.0
 MIRRORZOOM_AMOUNT_STEP = 0.10
 MIRRORZOOM_AMOUNT_MIN = 0.2
 MIRRORZOOM_AMOUNT_MAX = 1.6
@@ -174,7 +176,16 @@ RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic Ink Mono
 DATAMOSH_COLOR_MODE_NAMES = ['RGB Mosh', 'Thermal Glitch', 'Acid Trip', 'Void Codec']
 VHSBURN_COLOR_MODE_NAMES  = ['Signal Melt', 'Night Tape']
 POSTER_COLOR_MODE_NAMES   = ['Warhol Pop', 'Neon Cel', 'Acid Bloom', 'Plasma Burn']
-LENSDOT_COLOR_MODE_NAMES = ['Soft Bevel', 'Hard Bevel', 'Specular Punch']
+LENSDOT_COLOR_MODE_NAMES = [
+    'Soft Bevel',
+    'Hard Bevel',
+    'Specular Punch',
+    'Toxic Candy Drift',
+    'Warhol Drift',
+    'Neon Flux Drift',
+    'Thermal Drift',
+    'Spectral Delta Bloom',
+]
 MIRRORZOOM_COLOR_MODE_NAMES = ['Pulse', 'Wide Pulse', 'Hyper Pulse']
 CHROMATRAIL_COLOR_MODE_NAMES = ['RGB Trail', 'Neon Trail', 'Thermal Trail']
 EFFECT_MODE_NAMES = [
@@ -204,6 +215,7 @@ _motion_level = 0.0
 _presence_scale = 0.0
 _presence_cx = 0.5
 _presence_cy = 0.5
+_prev_frame_for_shader = None
 _render_w = 0
 _render_h = 0
 _shot_deadline = None
@@ -948,7 +960,7 @@ def _print_shutdown_banner(reason):
 
 @CFUNCTYPE(None, c_uint, c_uint, c_uint)
 def on_init(program, width, height):
-    global tex_id, loc_channel0, loc_color_mode, loc_rutt_wave, loc_ascii_density
+    global tex_id, tex_prev_id, loc_channel0, loc_channel1, loc_color_mode, loc_rutt_wave, loc_ascii_density
     global loc_effect_mode, loc_view_mode, loc_mirror, loc_camera_aspect, loc_pixelart_size
     global loc_motion_level, loc_presence_scale, loc_presence_cx, loc_presence_cy
     global _render_w, _render_h
@@ -969,7 +981,7 @@ def on_init(program, width, height):
     loc_presence_cx     = glsl.glGetUniformLocation(program, b'uPresenceCX')
     loc_presence_cy     = glsl.glGetUniformLocation(program, b'uPresenceCY')
 
-    # Create the texture manually
+    # Create the current camera texture.
     tid = c_uint(0)
     glsl.glGenTextures(1, ctypes.byref(tid))
     tex_id = tid.value
@@ -984,9 +996,25 @@ def on_init(program, width, height):
     glsl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, CAM_W, CAM_H, 0,
                       GL_RGB, GL_UNSIGNED_BYTE, empty)
 
+    # Create the previous-frame texture (for temporal effects).
+    tid_prev = c_uint(0)
+    glsl.glGenTextures(1, ctypes.byref(tid_prev))
+    tex_prev_id = tid_prev.value
+    glsl.glActiveTexture(GL_TEXTURE1)
+    glsl.glBindTexture(GL_TEXTURE_2D, tex_prev_id)
+    glsl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+    glsl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+    glsl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glsl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glsl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, CAM_W, CAM_H, 0,
+                      GL_RGB, GL_UNSIGNED_BYTE, empty)
+
     loc_channel0 = glsl.glGetUniformLocation(program, b'iChannel0')
+    loc_channel1 = glsl.glGetUniformLocation(program, b'iChannel1')
     if loc_channel0 >= 0:
         glsl.glUniform1i(loc_channel0, 0)
+    if loc_channel1 >= 0:
+        glsl.glUniform1i(loc_channel1, 1)
     if loc_color_mode >= 0:
         glsl.glUniform1i(loc_color_mode, _active_color_mode())
     if loc_rutt_wave >= 0:
@@ -1005,18 +1033,38 @@ def on_init(program, width, height):
         _ps = current_raster_size if current_effect_mode == 3 else current_pixelart_size
         glsl.glUniform1f(loc_pixelart_size, c_float(_ps))
 
-    print(f'[GL] texture {tex_id} ready, loc_channel0={loc_channel0}')
+    print(f'[GL] textures current={tex_id} prev={tex_prev_id} ready, loc_channel0={loc_channel0}, loc_channel1={loc_channel1}')
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
-    global _fps_last_frame, _fps_last_time, _fps_smoothed, _fps_last_report_time
+    global _fps_last_frame, _fps_last_time, _fps_smoothed, _fps_last_report_time, _prev_frame_for_shader
     with _lock:
         f = _frame
+
+    need_delta_prev = (current_effect_mode == 7 and current_lensdot_color_mode == 7)
+    if need_delta_prev:
+        if _prev_frame_for_shader is None or _prev_frame_for_shader.shape != f.shape:
+            _prev_frame_for_shader = f.copy()
+        prev_frame = _prev_frame_for_shader
+    else:
+        prev_frame = f
+
+    prev_data = prev_frame.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
     data = f.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
+
+    glsl.glActiveTexture(GL_TEXTURE1)
+    glsl.glBindTexture(GL_TEXTURE_2D, tex_prev_id)
+    glsl.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CAM_W, CAM_H,
+                         GL_RGB, GL_UNSIGNED_BYTE, prev_data)
+
     glsl.glActiveTexture(GL_TEXTURE0)
     glsl.glBindTexture(GL_TEXTURE_2D, tex_id)
     glsl.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CAM_W, CAM_H,
                          GL_RGB, GL_UNSIGNED_BYTE, data)
+    if need_delta_prev:
+        _prev_frame_for_shader = f.copy()
+    else:
+        _prev_frame_for_shader = None
     if loc_color_mode >= 0:
         glsl.glUniform1i(loc_color_mode, _active_color_mode())
     if loc_rutt_wave >= 0:

@@ -132,6 +132,11 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 | 07.01 | Soft Bevel | Soft Bevel | Dot-lens mosaic with soft bevel and subtle specular. | Neutral highlights, source hues |
 | 07.02 | Hard Bevel | Hard Bevel | Sharper bevel profile and stronger shape contrast. | Bright highlights, deeper shadows |
 | 07.03 | Specular Punch | Specular Punch | High specular punch for glossy bead-like look. | White hotspots, source hues |
+| 07.04 | Toxic Candy Drift | Toxic Candy Drift | Fast camera-driven dot motion with slow toxic candy color drift. | Toxic green, cyan, candy magenta, pale glow |
+| 07.05 | Warhol Drift | Warhol Drift | Pop-art palette transitions per dot with very slow crossfade. | Red, yellow, cyan, violet, lime, orange |
+| 07.06 | Neon Flux Drift | Neon Flux Drift | Tri-neon loop with restrained hue travel over beveled dots. | Neon cyan, magenta, acid yellow |
+| 07.07 | Thermal Drift | Thermal Drift | Heat-map style dot palette with deliberately slow temporal sweep. | Blue, cyan, yellow, red |
+| 07.08 | Spectral Delta Bloom | Spectral Delta Bloom | Only dots with >50% temporal color change grow, proportionally to the measured RGB delta. | Slow spectral rainbow + white-hot peaks |
 
 #### 08 - Mirror Zoom Tiles
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
@@ -245,8 +250,13 @@ Disc mosaic with beveled shading and specular highlights, sampled from the live 
 | Soft Bevel | Gentle bevel and lower specular |
 | Hard Bevel | Sharper bevel profile |
 | Specular Punch | Strong highlight and crisp bead look |
+| Toxic Candy Drift | Toxic candy palette drift, color cycle intentionally slow |
+| Warhol Drift | Warhol palette swap with very slow crossfade |
+| Neon Flux Drift | Neon triad drift with slow hue transition |
+| Thermal Drift | Thermal palette sweep at restrained speed |
+| Spectral Delta Bloom | Dots expand only where temporal color change exceeds 50%, proportional growth |
 
-`←` / `→` controls detail (1.0–5.0).
+`←` / `→` controls detail (0.20–14.0): far left can reach roughly 6 dots across the screen, far right can produce very dense dot grids.
 
 ### Mirror Zoom Tiles
 

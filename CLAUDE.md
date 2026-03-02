@@ -129,7 +129,7 @@ On the target Raspberry Pi:
 
 **Posterize Glitch Comic (uEffectMode=6):** Warhol Pop · Neon Cel · Acid Bloom · Plasma Burn
 
-**Lens Dot Bevel (uEffectMode=7):** Soft Bevel · Hard Bevel · Specular Punch
+**Lens Dot Bevel (uEffectMode=7):** Soft Bevel · Hard Bevel · Specular Punch · Toxic Candy Drift · Warhol Drift · Neon Flux Drift · Thermal Drift · Spectral Delta Bloom
 
 **Mirror Zoom Tiles (uEffectMode=8):** Pulse · Wide Pulse · Hyper Pulse
 

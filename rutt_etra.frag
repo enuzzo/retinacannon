@@ -1,4 +1,5 @@
 uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;
 uniform int uColorMode;
 uniform float uRuttWave;
 uniform float uAsciiDensity;
@@ -962,19 +963,84 @@ vec3 sampleExpCam(vec2 uv) {
     return texture(iChannel0, safeUV(cameraMirrorUV(uv))).rgb;
 }
 
+vec3 lensToxicPalette(float t) {
+    // Toxic-Candy ramp reused for Lens Dot variants.
+    vec3 c0 = vec3(0.070, 0.070, 0.090);  // near-black
+    vec3 c1 = vec3(0.224, 1.000, 0.078);  // toxic green
+    vec3 c2 = vec3(0.000, 0.898, 1.000);  // electric cyan
+    vec3 c3 = vec3(1.000, 0.310, 0.847);  // candy magenta
+    vec3 c4 = vec3(1.000, 0.953, 0.690);  // pale glow
+
+    t = fract(t);
+    if (t < 0.25) return mix(c0, c1, t / 0.25);
+    if (t < 0.50) return mix(c1, c2, (t - 0.25) / 0.25);
+    if (t < 0.75) return mix(c2, c3, (t - 0.50) / 0.25);
+    return mix(c3, c4, (t - 0.75) / 0.25);
+}
+
+vec3 lensWarholPalette(float idx) {
+    if (idx < 1.0) return vec3(1.00, 0.05, 0.12);
+    if (idx < 2.0) return vec3(1.00, 0.90, 0.00);
+    if (idx < 3.0) return vec3(0.00, 0.85, 1.00);
+    if (idx < 4.0) return vec3(0.90, 0.00, 0.90);
+    if (idx < 5.0) return vec3(0.00, 0.95, 0.35);
+    return vec3(1.00, 0.50, 0.00);
+}
+
+vec3 lensNeonPalette(float t) {
+    t = fract(t);
+    float a = sin((t + 0.00) * 6.2831853) * 0.5 + 0.5;
+    float b = sin((t + 0.33) * 6.2831853) * 0.5 + 0.5;
+    float c = sin((t + 0.66) * 6.2831853) * 0.5 + 0.5;
+    vec3 neonA = vec3(0.00, 1.00, 0.95);
+    vec3 neonB = vec3(1.00, 0.05, 0.85);
+    vec3 neonC = vec3(0.95, 1.00, 0.00);
+    return (neonA * a + neonB * b + neonC * c) / max(a + b + c, 1e-4);
+}
+
 vec3 renderLensDotBevel(vec2 fragCoord) {
-    float detail = clamp(uAsciiDensity, 1.0, 5.0);
-    float dn = (detail - 1.0) / 4.0;
-    float cell = mix(48.0, 22.0, dn);
+    float detail = clamp(uAsciiDensity, 0.20, 14.0);
+    float cell;
+    if (detail < 1.0) {
+        // Extend left range: up to ~6 dots across screen width.
+        float t = clamp((1.0 - detail) / 0.8, 0.0, 1.0);
+        t = pow(t, 1.15);
+        cell = mix(48.0, max(iResolution.x / 6.0, 48.0), t);
+    } else if (detail <= 5.0) {
+        // Preserve legacy response in the original operating range.
+        float t = (detail - 1.0) / 4.0;
+        cell = mix(48.0, 22.0, t);
+    } else {
+        // Extend right range: many more dots per row.
+        float t = clamp((detail - 5.0) / 9.0, 0.0, 1.0);
+        t = pow(t, 0.85);
+        cell = mix(22.0, 6.0, t);
+    }
+
     float bevelK = (uColorMode == 1) ? 0.32 : ((uColorMode == 2) ? 0.42 : 0.20);
     float specP = (uColorMode == 2) ? 72.0 : 54.0;
     float specI = (uColorMode == 2) ? 0.55 : 0.40;
+    if (uColorMode >= 3) {
+        bevelK = 0.30;
+        specP = 68.0;
+        specI = 0.46;
+    }
 
     vec2 cid = floor(fragCoord / vec2(cell));
     vec2 ctr = (cid + 0.5) * vec2(cell);
+    vec2 suv = ctr / iResolution.xy;
     vec2 toC = fragCoord - ctr;
     float d = length(toC);
+    vec3 base = sampleExpCam(suv);
+    vec3 prevBase = texture(iChannel1, safeUV(cameraMirrorUV(suv))).rgb;
+    float delta = length(base - prevBase) * 0.57735026919; // normalized 0..1 RGB delta
+    float deltaOver = clamp((delta - 0.5) / 0.5, 0.0, 1.0);
+
     float rad = max(0.1, (cell - 0.1) * 0.5);
+    if (uColorMode == 7) {
+        // Only above 50% color-change threshold: grow proportional to extra delta.
+        rad *= 1.0 + deltaOver * 1.8;
+    }
     float aa = max(fwidth(d), 0.001);
     float disc = 1.0 - smoothstep(rad, rad + aa, d);
 
@@ -986,9 +1052,51 @@ vec3 renderLensDotBevel(vec2 fragCoord) {
     vec3 L = normalize(vec3(0.55, 0.45, 0.72));
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
 
-    vec3 base = sampleExpCam(ctr / iResolution.xy);
-    vec3 shade = base * (0.35 + 0.65 * max(dot(n, L), 0.0)) * mix(1.2, 1.0, s)
-               + pow(max(dot(n, H), 0.0), specP) * specI;
+    float lit = (0.35 + 0.65 * max(dot(n, L), 0.0)) * mix(1.2, 1.0, s);
+    float spec = pow(max(dot(n, H), 0.0), specP) * specI;
+
+    if (uColorMode <= 2) {
+        vec3 shade = base * lit + spec;
+        // Keep only the lens dots, without the blurred camera fill between cells.
+        return clamp(shade * disc, 0.0, 1.0);
+    }
+
+    // New palette variants: fast silhouette motion (camera-driven) with slow color drift.
+    float tone = clamp(getLuma(base), 0.0, 1.0);
+    float seed = hash12(cid * vec2(0.731, 1.417) + 5.13);
+    vec3 palette;
+    if (uColorMode == 3) {
+        // Toxic Candy Drift: smooth neon candy cycle, intentionally slow.
+        float t = seed + iTime * 0.08;
+        palette = lensToxicPalette(t);
+    } else if (uColorMode == 4) {
+        // Warhol Drift: pop-art color steps with very slow crossfade.
+        float wf = fract(seed * 0.73 + iTime * 0.06) * 6.0;
+        float wi = floor(wf);
+        float wt = smoothstep(0.15, 0.85, fract(wf));
+        vec3 wa = lensWarholPalette(wi);
+        vec3 wb = lensWarholPalette(mod(wi + 1.0, 6.0));
+        palette = mix(wa, wb, wt);
+    } else if (uColorMode == 5) {
+        // Neon Flux Drift: tri-neon loop with slow hue travel.
+        float t = seed * 1.37 + iTime * 0.10;
+        palette = lensNeonPalette(t);
+    } else if (uColorMode == 6) {
+        // Thermal Drift: heat-map sweep at a restrained pace.
+        float t = fract(seed * 0.91 + iTime * 0.07);
+        palette = thermalJet(t);
+    } else {
+        // Spectral Delta Bloom: slow spectrum drift + delta-driven highlights.
+        float hue = fract(seed * 0.89 + delta * 0.75 + iTime * 0.06);
+        vec3 spectral = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+        palette = mix(pow(spectral, vec3(0.75)), vec3(1.0), smoothstep(0.78, 1.0, delta));
+    }
+
+    float toneLift = mix(0.18, 1.15, pow(tone, 0.85));
+    vec3 shade = palette * toneLift * lit + vec3(spec);
+    if (uColorMode == 7) {
+        shade += palette * (deltaOver * 0.35);
+    }
     // Keep only the lens dots, without the blurred camera fill between cells.
     return clamp(shade * disc, 0.0, 1.0);
 }
