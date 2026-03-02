@@ -216,6 +216,7 @@ _presence_scale = 0.0
 _presence_cx = 0.5
 _presence_cy = 0.5
 _prev_frame_for_shader = None
+_prev_frame_lag_counter = 0
 _render_w = 0
 _render_h = 0
 _shot_deadline = None
@@ -1037,7 +1038,8 @@ def on_init(program, width, height):
 
 @CFUNCTYPE(None, c_uint64, c_float)
 def on_render(frame, time):
-    global _fps_last_frame, _fps_last_time, _fps_smoothed, _fps_last_report_time, _prev_frame_for_shader
+    global _fps_last_frame, _fps_last_time, _fps_smoothed, _fps_last_report_time
+    global _prev_frame_for_shader, _prev_frame_lag_counter
     with _lock:
         f = _frame
 
@@ -1045,6 +1047,7 @@ def on_render(frame, time):
     if need_delta_prev:
         if _prev_frame_for_shader is None or _prev_frame_for_shader.shape != f.shape:
             _prev_frame_for_shader = f.copy()
+            _prev_frame_lag_counter = 0
         prev_frame = _prev_frame_for_shader
     else:
         prev_frame = f
@@ -1062,9 +1065,14 @@ def on_render(frame, time):
     glsl.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CAM_W, CAM_H,
                          GL_RGB, GL_UNSIGNED_BYTE, data)
     if need_delta_prev:
-        _prev_frame_for_shader = f.copy()
+        _prev_frame_lag_counter += 1
+        # Keep a short temporal gap so camera movement yields a stronger delta signal.
+        if _prev_frame_lag_counter >= 3:
+            _prev_frame_for_shader = f.copy()
+            _prev_frame_lag_counter = 0
     else:
         _prev_frame_for_shader = None
+        _prev_frame_lag_counter = 0
     if loc_color_mode >= 0:
         glsl.glUniform1i(loc_color_mode, _active_color_mode())
     if loc_rutt_wave >= 0:

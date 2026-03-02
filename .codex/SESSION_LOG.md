@@ -196,3 +196,29 @@
 - Fix: n/a.
 - Concrete verification: shortlist recorded as `1.txt`, `2.txt`, `8.txt`; exclusions recorded as `3.txt`, `4.txt`, `5.txt`, `6.txt`, `7.txt`, `9.txt`, `10.txt`.
 - Prevention: when new snippets arrive, update shortlist first, then start implementation only from listed candidates.
+
+### [2026-03-02 18:52] Lens Dot expansion pass + temporal delta mode tuning
+- Goal: extend Lens Dot size control range significantly, add temporal growth mode driven by color-change threshold, then document behavior in README and Codex knowledge.
+- Actions taken:
+  - Extended Lens Dot detail range in Python controls to `0.20..14.0` (`step 0.25`), keeping the same left/right key flow.
+  - Added `07.08 Spectral Delta Bloom` to Lens Dot color modes.
+  - Added previous-frame shader input (`iChannel1`) by allocating and updating a second GL texture in `on_init`/`on_render`.
+  - Implemented temporal delta growth in `rutt_etra.frag` for `uColorMode==7`:
+    - growth activates only above 50% delta threshold,
+    - growth amount scales with excess delta,
+    - delta computed over center + 4 neighboring samples per dot for stronger motion pickup.
+  - Added short previous-frame lag (3-frame update cadence) for clearer temporal response during camera movement.
+  - Updated README Lens Dot catalog and notes with the new mode, extended range, and implementation caveat.
+  - Updated `.codex/MEMORY.md` with current Lens Dot operational behavior and caveats.
+- Errors encountered:
+  - Initial temporal scaling was too subtle in live perception, so dots appeared static to the operator.
+  - After stronger scaling, growth looked square-ish instead of purely circular at high delta.
+- Fix:
+  - Increased temporal sensitivity and radius multiplier for `07.08`.
+  - Documented square-ish bloom as expected with current cell ownership model.
+- Concrete verification:
+  - `python3 -m py_compile retina_cannon.py` passes after changes.
+  - Presence checks via `rg` confirm: `iChannel1` wiring, new mode name, and updated detail range.
+- Prevention:
+  - For temporal visuals, validate visibility with a purposeful frame lag and multi-sample delta before concluding effect strength.
+  - When cell-based dot partitioning is used, document expected geometric artifacts (square-ish bloom) explicitly in README/KB.

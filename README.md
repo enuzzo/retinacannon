@@ -136,7 +136,7 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 | 07.05 | Warhol Drift | Warhol Drift | Pop-art palette transitions per dot with very slow crossfade. | Red, yellow, cyan, violet, lime, orange |
 | 07.06 | Neon Flux Drift | Neon Flux Drift | Tri-neon loop with restrained hue travel over beveled dots. | Neon cyan, magenta, acid yellow |
 | 07.07 | Thermal Drift | Thermal Drift | Heat-map style dot palette with deliberately slow temporal sweep. | Blue, cyan, yellow, red |
-| 07.08 | Spectral Delta Bloom | Spectral Delta Bloom | Only dots with >50% temporal color change grow, proportionally to the measured RGB delta. | Slow spectral rainbow + white-hot peaks |
+| 07.08 | Spectral Delta Bloom | Spectral Delta Bloom | Only dots with >50% temporal color change grow, proportionally to the measured RGB delta; expansion can read as square-ish bloom due to cell ownership. | Slow spectral rainbow + white-hot peaks |
 
 #### 08 - Mirror Zoom Tiles
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
@@ -254,9 +254,11 @@ Disc mosaic with beveled shading and specular highlights, sampled from the live 
 | Warhol Drift | Warhol palette swap with very slow crossfade |
 | Neon Flux Drift | Neon triad drift with slow hue transition |
 | Thermal Drift | Thermal palette sweep at restrained speed |
-| Spectral Delta Bloom | Dots expand only where temporal color change exceeds 50%, proportional growth |
+| Spectral Delta Bloom | Dots expand only where temporal color change exceeds 50%, proportional growth with grid-bloom character |
 
 `←` / `→` controls detail (0.20–14.0): far left can reach roughly 6 dots across the screen, far right can produce very dense dot grids.
+
+Implementation note (07.08): temporal growth uses current frame vs previous frame (`iChannel0` vs `iChannel1`) with threshold fixed at 50%. At high deltas, dots can look square-ish because each fragment still belongs to a fixed dot cell.
 
 ### Mirror Zoom Tiles
 

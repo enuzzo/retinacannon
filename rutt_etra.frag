@@ -963,6 +963,13 @@ vec3 sampleExpCam(vec2 uv) {
     return texture(iChannel0, safeUV(cameraMirrorUV(uv))).rgb;
 }
 
+float lensTemporalDelta(vec2 uv) {
+    vec3 cur = sampleExpCam(uv);
+    vec3 prv = texture(iChannel1, safeUV(cameraMirrorUV(uv))).rgb;
+    vec3 d = abs(cur - prv);
+    return max(d.r, max(d.g, d.b));
+}
+
 vec3 lensToxicPalette(float t) {
     // Toxic-Candy ramp reused for Lens Dot variants.
     vec3 c0 = vec3(0.070, 0.070, 0.090);  // near-black
@@ -1032,14 +1039,26 @@ vec3 renderLensDotBevel(vec2 fragCoord) {
     vec2 toC = fragCoord - ctr;
     float d = length(toC);
     vec3 base = sampleExpCam(suv);
-    vec3 prevBase = texture(iChannel1, safeUV(cameraMirrorUV(suv))).rgb;
-    float delta = length(base - prevBase) * 0.57735026919; // normalized 0..1 RGB delta
-    float deltaOver = clamp((delta - 0.5) / 0.5, 0.0, 1.0);
+    float delta = 0.0;
+    float deltaOver = 0.0;
+    if (uColorMode == 7) {
+        // Robust temporal delta: check center + neighbors to catch camera movement.
+        vec2 duv = vec2(cell / iResolution.x, cell / iResolution.y) * 0.24;
+        float d0 = lensTemporalDelta(suv);
+        float d1 = lensTemporalDelta(suv + vec2( duv.x, 0.0));
+        float d2 = lensTemporalDelta(suv + vec2(-duv.x, 0.0));
+        float d3 = lensTemporalDelta(suv + vec2(0.0,  duv.y));
+        float d4 = lensTemporalDelta(suv + vec2(0.0, -duv.y));
+        delta = max(d0, max(max(d1, d2), max(d3, d4)));
+        // Keep threshold semantics at 50%, but make movement read more clearly.
+        delta = clamp(pow(delta, 0.75) * 1.9, 0.0, 1.0);
+        deltaOver = clamp((delta - 0.5) / 0.5, 0.0, 1.0);
+    }
 
     float rad = max(0.1, (cell - 0.1) * 0.5);
     if (uColorMode == 7) {
         // Only above 50% color-change threshold: grow proportional to extra delta.
-        rad *= 1.0 + deltaOver * 1.8;
+        rad *= 1.0 + deltaOver * 3.2;
     }
     float aa = max(fwidth(d), 0.001);
     float disc = 1.0 - smoothstep(rad, rad + aa, d);
@@ -1095,7 +1114,7 @@ vec3 renderLensDotBevel(vec2 fragCoord) {
     float toneLift = mix(0.18, 1.15, pow(tone, 0.85));
     vec3 shade = palette * toneLift * lit + vec3(spec);
     if (uColorMode == 7) {
-        shade += palette * (deltaOver * 0.35);
+        shade += palette * (deltaOver * 0.55);
     }
     // Keep only the lens dots, without the blurred camera fill between cells.
     return clamp(shade * disc, 0.0, 1.0);

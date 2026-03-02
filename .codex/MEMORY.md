@@ -18,15 +18,17 @@
 - Main run command: `/home/enuzzo/retinacannon/start_cannon.sh`.
 - Stable runtime baseline: ~20 FPS on RPi4 with the canonical launcher.
 - Runtime stack: `retina_cannon.py` + `rutt_etra.frag` (GLSL) + kms-glsl ctypes bridge.
-- Active shader: `rutt_etra.frag` — eight effects via `uEffectMode` uniform:
-  - 0: Rutt-Etra CRT (scan-line displacement, CRT curvature, vignette)
-  - 1: ASCII Cam (bitmap font glyphs, 4 color modes)
-  - 2: Pixel Art (block grid, 4 palette modes: Full Color/Game Boy/CMYK Melt/Toxic Candy)
-  - 3: Signal Ghost (generative typography, motion/presence reactive, 6 color modes)
-  - 4: Raster Vision (dedicated raster/halftone pipeline, 5 modes including thermal/comic/pastel/pop)
-  - 5: Datamosh Trails
-  - 6: VHS Tracking Burn
-  - 7: Posterize Glitch Comic
+- Active shader: `rutt_etra.frag` — ten effects via `uEffectMode` uniform:
+  - 0: Rutt-Etra CRT
+  - 1: ASCII Cam
+  - 2: Pixel Art
+  - 3: Raster Vision
+  - 4: Digital Codec Corruption
+  - 5: VHS Tracking Burn
+  - 6: Posterize Glitch Comic
+  - 7: Lens Dot Bevel
+  - 8: Mirror Zoom Tiles
+  - 9: Chromatic Trails
 - Boot/exit splash: VHS-style centered ASCII title with local figlet font `fonts/Slant Relief.flf`, optional `lolcat` colorization, random startup/shutdown lines, and configurable countdown via `--splash` (`-1` = hold until keypress).
 - Figlet wrap guard: always render title with `figlet -w 1000` to avoid internal 80-column word splitting.
 - lolcat path fallback: use `/usr/games/lolcat` if not present in regular `PATH`.
@@ -42,6 +44,18 @@
 - stdin replaced with idle pipe (fd 0): prevents kms-glsl C code from interpreting stdin activity as interruption.
 - Float uniforms via ctypes must use `c_float()` wrapper.
 - Arrow keys: parser handles both `ESC [` and `ESC O` prefixes.
+- Lens Dot (`uEffectMode=7`) now has 8 color modes:
+  - Existing base modes (must remain behavior-compatible): Soft Bevel, Hard Bevel, Specular Punch
+  - Added drift modes: Toxic Candy Drift, Warhol Drift, Neon Flux Drift, Thermal Drift
+  - Added temporal mode: Spectral Delta Bloom
+- Lens Dot detail control range: `0.20..14.0` (step `0.25`):
+  - left side supports very large dots (about 6 dots across at minimum)
+  - right side supports very dense dot grids
+- Spectral Delta Bloom uses temporal comparison between current and previous camera frames:
+  - `iChannel0` = current frame, `iChannel1` = previous/lagged frame
+  - growth threshold fixed at 50% color-change delta
+  - above threshold, growth is proportional to extra delta
+  - known current visual behavior: expansion can appear square-ish because dot ownership remains cell-based.
 
 ## Security and secrets
 - Rule: secrets live only in ignored local files (`config.local.h`, `.env.local`, etc.).
@@ -55,6 +69,7 @@
 - Screenshot capture in callback timing: force a one-off draw before `glReadPixels` or dumps can be black.
 - When adding new effect modes: update `EFFECT_MODE_NAMES`, `_active_color_mode()`, `_set_active_color_mode()`, `_effect_param_label()`, `on_init`, `on_render`, keyboard handler, and `mainImage()` in shader.
 - Blue-skin regression trap: channel-order mismatches (`rgb` vs `bgr`) can affect only some effects while Rutt looks correct. Troubleshoot by comparing the problematic effect against Rutt in the same session and standardize sampling in the new effect path.
+- Lens Dot 07.08 caveat: temporal growth is intentionally aggressive for visibility; apparent square blooms are expected with the current cell-based partitioning.
 
 ## Totry shortlist (2026-03-01)
 - Exclude by dependency mismatch (extra channels/multipass/Shadertoy keyboard): `3.txt`, `4.txt`, `5.txt`, `6.txt`, `7.txt`, `9.txt`.
