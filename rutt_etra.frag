@@ -958,11 +958,40 @@ vec3 renderPosterizeGlitchComic(vec2 uv, vec2 fragCoord) {
     return clamp(col, 0.0, 1.0);
 }
 
-vec3 sampleExpCam(vec2 uv) {    return texture(iChannel0, safeUV(cameraMirrorUV(uv))).rgb;}
+vec3 sampleExpCam(vec2 uv) {
+    return texture(iChannel0, safeUV(cameraMirrorUV(uv))).rgb;
+}
 
-vec3 blur5(vec2 uv, vec2 axis, float px) {    vec2 off = axis * px;    vec3 c = sampleExpCam(uv) * 0.50;    c += sampleExpCam(uv + off) * 0.25;    c += sampleExpCam(uv - off) * 0.25;    return c;}
+vec3 renderLensDotBevel(vec2 fragCoord) {
+    float detail = clamp(uAsciiDensity, 1.0, 5.0);
+    float dn = (detail - 1.0) / 4.0;
+    float cell = mix(48.0, 22.0, dn);
+    float bevelK = (uColorMode == 1) ? 0.32 : ((uColorMode == 2) ? 0.42 : 0.20);
+    float specP = (uColorMode == 2) ? 72.0 : 54.0;
+    float specI = (uColorMode == 2) ? 0.55 : 0.40;
 
-vec3 renderLensDotBevel(vec2 uv, vec2 fragCoord) {    float detail = clamp(uAsciiDensity, 1.0, 5.0);    float dn = (detail - 1.0) / 4.0;    float cell = mix(48.0, 22.0, dn);    float bevelK = (uColorMode == 1) ? 0.32 : ((uColorMode == 2) ? 0.42 : 0.20);    float specP = (uColorMode == 2) ? 72.0 : 54.0;    float specI = (uColorMode == 2) ? 0.55 : 0.40;    float blurPx = mix(2.0, 5.0, dn);    vec3 bg = 0.5 * (blur5(uv, vec2(1.0 / iResolution.x, 0.0), blurPx) + blur5(uv, vec2(0.0, 1.0 / iResolution.y), blurPx));    bg = clamp(bg * exp2(-0.55), 0.0, 0.95);    vec2 cid = floor(fragCoord / vec2(cell));    vec2 ctr = (cid + 0.5) * vec2(cell);    vec2 toC = fragCoord - ctr;    float d = length(toC);    float rad = max(0.1, (cell - 0.1) * 0.5);    float aa = max(fwidth(d), 0.001);    float disc = 1.0 - smoothstep(rad, rad + aa, d);    float bw = rad * bevelK;    float innerR = max(rad - bw, 0.0);    float s = clamp((d - innerR) / max(bw, 1e-5), 0.0, 1.0);    vec2 rdir = (d > 0.0) ? toC / d : vec2(1.0, 0.0);    vec3 n = normalize(vec3(rdir * sin(s * 1.57079632679), cos(s * 1.57079632679)));    vec3 L = normalize(vec3(0.55, 0.45, 0.72));    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));    vec3 base = sampleExpCam(ctr / iResolution.xy);    vec3 shade = base * (0.35 + 0.65 * max(dot(n, L), 0.0)) * mix(1.2, 1.0, s) + pow(max(dot(n, H), 0.0), specP) * specI;    return clamp(mix(bg, shade, disc), 0.0, 1.0);}
+    vec2 cid = floor(fragCoord / vec2(cell));
+    vec2 ctr = (cid + 0.5) * vec2(cell);
+    vec2 toC = fragCoord - ctr;
+    float d = length(toC);
+    float rad = max(0.1, (cell - 0.1) * 0.5);
+    float aa = max(fwidth(d), 0.001);
+    float disc = 1.0 - smoothstep(rad, rad + aa, d);
+
+    float bw = rad * bevelK;
+    float innerR = max(rad - bw, 0.0);
+    float s = clamp((d - innerR) / max(bw, 1e-5), 0.0, 1.0);
+    vec2 rdir = (d > 0.0) ? toC / d : vec2(1.0, 0.0);
+    vec3 n = normalize(vec3(rdir * sin(s * 1.57079632679), cos(s * 1.57079632679)));
+    vec3 L = normalize(vec3(0.55, 0.45, 0.72));
+    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+
+    vec3 base = sampleExpCam(ctr / iResolution.xy);
+    vec3 shade = base * (0.35 + 0.65 * max(dot(n, L), 0.0)) * mix(1.2, 1.0, s)
+               + pow(max(dot(n, H), 0.0), specP) * specI;
+    // Keep only the lens dots, without the blurred camera fill between cells.
+    return clamp(shade * disc, 0.0, 1.0);
+}
 
 vec3 renderMirrorZoomTiles(vec2 uv, vec2 fragCoord) {    float zoomCtl = clamp(uAsciiDensity, 0.2, 1.6);    float speed = mix(0.50, 1.60, zoomCtl / 1.6);    float pulseAmp = (uColorMode == 1) ? 0.70 : ((uColorMode == 2) ? 0.90 : 0.48);    float zoom = (sin(iTime * speed) * 0.5 + 0.5) * pulseAmp;    float side = (uColorMode == 0) ? 0.12 : ((uColorMode == 1) ? 0.085 : 0.060);    vec2 uv1 = fragCoord / iResolution.x;    vec2 center = side * round(uv1 / side);    center.y *= iResolution.x / iResolution.y;    vec2 muv = fragCoord / iResolution.xy;    muv -= zoom * (center - vec2(0.5));    muv -= 0.5;    muv *= 1.0 + zoom * (1.0 + zoomCtl * 0.35);    muv += 0.5;    muv = abs(muv);    muv = step(1.0, muv) * 2.0 + sign(1.0 - muv) * muv;    vec3 col = texture(iChannel0, safeUV(cameraMirrorUV(muv))).rgb;    return clamp(col, 0.0, 1.0);}
 
@@ -999,7 +1028,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     } else if (uEffectMode == 6) {
         color = renderPosterizeGlitchComic(uv, fragCoord);
     } else if (uEffectMode == 7) {
-        color = renderLensDotBevel(uv, fragCoord);
+        color = renderLensDotBevel(fragCoord);
     } else if (uEffectMode == 8) {
         color = renderMirrorZoomTiles(uv, fragCoord);
     } else {
