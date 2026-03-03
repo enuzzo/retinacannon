@@ -157,9 +157,9 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
 |---|---|---|---|---|
 | 10.01 | Scope Mono | Scope Mono | Black background with white horizontal/vertical profile traces. | White, black |
-| 10.02 | Camera Overlay | Camera Overlay | Source camera underlay with profile traces mixed on top. | Source RGB, white |
-| 10.03 | Tint Overlay | Tint Overlay | Shadertoy-style warm tint modulation plus profile traces. | Warm reds, source RGB, white |
-| 10.04 | Thermal Overlay | Thermal Overlay | Thermal remap underlay with oscilloscope profile traces. | Thermal blue/yellow/red, white |
+| 10.02 | Camera Overlay | Camera Overlay | Camera-driven color sampled only on profile traces (no visible underlay). | Source RGB on black |
+| 10.03 | Tint Overlay | Tint Overlay | Warm Shadertoy-like tint applied only to profile traces (no visible underlay). | Warm reds, source RGB on black |
+| 10.04 | Thermal Overlay | Thermal Overlay | Thermal remap applied only to profile traces (no visible underlay). | Thermal blue/yellow/red on black |
 
 ### Rutt-Etra CRT
 
@@ -300,11 +300,11 @@ Variant inspired by Shadertoy profile-scope visuals: a quantized sampling grid b
 | Mode | Look |
 |---|---|
 | Scope Mono | Black background, white traces only |
-| Camera Overlay | Camera underlay with white profile traces |
-| Tint Overlay | Warm-tinted underlay with profile traces |
-| Thermal Overlay | Thermal underlay plus profile traces |
+| Camera Overlay | Camera-colored traces only on black |
+| Tint Overlay | Warm-tinted traces only on black |
+| Thermal Overlay | Thermal-colored traces only on black |
 
-`←` / `→` controls scope grid density (0.5–2.4).
+`←` / `→` controls scope grid density (0.8–3.4).
 
 ---
 
@@ -451,7 +451,7 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | Lens Dot detail | 2.6 |
 | Mirror Zoom amount | 0.80 |
 | Chromatic Trails intensity | 1.20 |
-| Vector Profile Scope grid | 1.20 |
+| Vector Profile Scope grid | 2.20 |
 | FPS baseline | ~20 FPS |
 
 ---

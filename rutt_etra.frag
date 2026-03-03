@@ -1144,35 +1144,29 @@ vec3 scopeSample(vec2 uv, vec2 v2) {
 vec3 renderVectorProfileScope(vec2 uv, vec2 fragCoord) {
     vec2 U = safeUV(uv);
     vec2 R = iResolution.xy;
-    float detail = clamp(uAsciiDensity, 0.5, 2.4);
-    float dNorm = (detail - 0.5) / 1.9;
-    float cellsX = mix(10.0, 96.0, dNorm);
+    float detail = clamp(uAsciiDensity, 0.8, 3.4);
+    float dNorm = clamp((detail - 0.8) / 2.6, 0.0, 1.0);
+    float cellsX = mix(12.0, 150.0, dNorm);
     vec2 G = vec2(cellsX, max(6.0, cellsX * R.y / R.x));
     vec2 I = round(U * G) / G;
     vec2 V = 2.0 * U - 1.0;
     V *= V;
     vec2 L = G * (U - I) + 0.5;
 
-    vec3 outCol = vec3(0.0);
-    if (uColorMode >= 1) {
-        outCol = scopeSample(U, V);
-        if (uColorMode == 1) {
-            outCol *= 0.95;
-        }
-    }
-
     vec3 pH = scopeSample(vec2(U.x, I.y), V);
     float hL = length(pH) * 0.57735026919;
     float hW = scopeAA(L.y - hL);
-    outCol = mix(outCol, vec3(1.0), hW);
 
     vec3 pV = scopeSample(vec2(I.x, U.y), V);
     float vL = length(pV) * 0.57735026919;
     float vW = scopeAA(L.x - vL);
-    outCol = mix(outCol, vec3(1.0), vW);
 
-    float cross = clamp(hW + vW, 0.0, 1.0);
-    outCol += vec3(0.08, 0.18, 0.10) * cross * ((uColorMode == 0) ? 0.90 : 0.45);
+    vec3 hCol = (uColorMode == 0) ? vec3(1.0) : pH;
+    vec3 vCol = (uColorMode == 0) ? vec3(1.0) : pV;
+    vec3 outCol = hCol * hW + vCol * vW;
+
+    float cross = hW * vW;
+    outCol += vec3(0.12) * cross;
 
     return clamp(sqrt(clamp(outCol, 0.0, 1.0)), 0.0, 1.0);
 }
