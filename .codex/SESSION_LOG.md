@@ -222,3 +222,35 @@
 - Prevention:
   - For temporal visuals, validate visibility with a purposeful frame lag and multi-sample delta before concluding effect strength.
   - When cell-based dot partitioning is used, document expected geometric artifacts (square-ish bloom) explicitly in README/KB.
+
+### [2026-03-03 16:33] Effect 10 integration + operator tuning + memory sync
+- Goal: add a new Shadertoy-inspired effect without destabilizing existing modes, then lock operator-requested behavior and persist decisions for future AI sessions.
+- Actions taken:
+  - Added `uEffectMode=10` (`Vector Profile Scope`) in `rutt_etra.frag` with profile-trace rendering and 4 sub-modes (`10.01..10.04`).
+  - Wired effect 10 in `retina_cannon.py`:
+    - new effect name and color-mode catalog,
+    - per-effect parameter label and keyboard control integration,
+    - density control mapped to shared `uAsciiDensity`.
+  - Applied operator tuning pass:
+    - increased default scope grid density to start “already tighter” (`2.20`),
+    - expanded control range to `0.8..3.4`,
+    - removed visible camera underlay for `10.02/10.03/10.04` so only colored traces remain on black.
+  - Updated `README.md` (11 effects, `00..10`, effect 10 catalog/defaults/controls).
+  - Updated knowledge + memory artifacts:
+    - `knowledge/README.md`,
+    - `knowledge/PERF_OPTIMIZATION_TRACKER.md`,
+    - `.codex/MEMORY.md`.
+  - Delivered two commits and pushed both to `origin/main`:
+    - `787f7e7` — add effect 10,
+    - `5668de2` — density and trace-only tuning.
+- Errors encountered:
+  - none blocking; run checks exit with timeout as expected during smoke tests.
+- Fix:
+  - n/a.
+- Concrete verification:
+  - `python3 -m py_compile retina_cannon.py` passed.
+  - `timeout 8s ./start_cannon.sh` ran successfully (EGL/GL init + shader compile), terminated by expected timeout (`124`).
+  - `git push origin main` succeeded for both commits.
+- Prevention:
+  - Keep effect behavior contracts in memory when user gives style constraints (in this case: no underlay for `10.02..10.04`).
+  - When adding effect IDs, update all three layers in the same session: runtime code, README, and knowledge/memory files.

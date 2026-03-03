@@ -18,7 +18,7 @@
 - Main run command: `/home/enuzzo/retinacannon/start_cannon.sh`.
 - Stable runtime baseline: ~20 FPS on RPi4 with the canonical launcher.
 - Runtime stack: `retina_cannon.py` + `rutt_etra.frag` (GLSL) + kms-glsl ctypes bridge.
-- Active shader: `rutt_etra.frag` — ten effects via `uEffectMode` uniform:
+- Active shader: `rutt_etra.frag` — eleven effects via `uEffectMode` uniform:
   - 0: Rutt-Etra CRT
   - 1: ASCII Cam
   - 2: Pixel Art
@@ -29,6 +29,7 @@
   - 7: Lens Dot Bevel
   - 8: Mirror Zoom Tiles
   - 9: Chromatic Trails
+  - 10: Vector Profile Scope
 - Boot/exit splash: VHS-style centered ASCII title with local figlet font `fonts/Slant Relief.flf`, optional `lolcat` colorization, random startup/shutdown lines, and configurable countdown via `--splash` (`-1` = hold until keypress).
 - Figlet wrap guard: always render title with `figlet -w 1000` to avoid internal 80-column word splitting.
 - lolcat path fallback: use `/usr/games/lolcat` if not present in regular `PATH`.
@@ -70,6 +71,13 @@
 - When adding new effect modes: update `EFFECT_MODE_NAMES`, `_active_color_mode()`, `_set_active_color_mode()`, `_effect_param_label()`, `on_init`, `on_render`, keyboard handler, and `mainImage()` in shader.
 - Blue-skin regression trap: channel-order mismatches (`rgb` vs `bgr`) can affect only some effects while Rutt looks correct. Troubleshoot by comparing the problematic effect against Rutt in the same session and standardize sampling in the new effect path.
 - Lens Dot 07.08 caveat: temporal growth is intentionally aggressive for visibility; apparent square blooms are expected with the current cell-based partitioning.
+- Vector Profile Scope (`uEffectMode=10`) operational decisions:
+  - Modes: `10.01 Scope Mono`, `10.02 Camera Overlay`, `10.03 Tint Overlay`, `10.04 Thermal Overlay`.
+  - Operator-approved style lock: `10.02..10.04` must remain trace-only color on black (no camera underlay/background image).
+  - Grid control is mapped on the shared density uniform:
+    - default `2.20`
+    - range `0.8..3.4`
+    - step `0.20`
 
 ## Totry shortlist (2026-03-01)
 - Exclude by dependency mismatch (extra channels/multipass/Shadertoy keyboard): `3.txt`, `4.txt`, `5.txt`, `6.txt`, `7.txt`, `9.txt`.

@@ -1,7 +1,7 @@
 # Retina Cannon Performance Optimization Tracker
 
 ## Scope
-- Goal: optimize FPS for each effect (`uEffectMode 0..9`) with measurable before/after evidence.
+- Goal: optimize FPS for each effect (`uEffectMode 0..10`) with measurable before/after evidence.
 - Hardware context: Raspberry Pi + camera + `kms-glsl`.
 - Method: one effect at a time, same benchmark protocol, log evidence preserved.
 
@@ -42,6 +42,7 @@ Notes:
 - ID 07 `Lens Dot Bevel` (origin: totry 2)
 - ID 08 `Mirror Zoom Tiles` (origin: totry 1)
 - ID 09 `Chromatic Trails` (origin: totry 8)
+- ID 10 `Vector Profile Scope` (origin: user-requested Shadertoy-style profile variant)
 
 ### Block D (Cross-cutting)
 - Shared helpers (`safeUV`, sampling paths, hash/noise usage)
@@ -61,6 +62,7 @@ Notes:
 | 07 | Lens Dot Bevel | C | Pending |
 | 08 | Mirror Zoom Tiles | C | Pending |
 | 09 | Chromatic Trails | C | Pending |
+| 10 | Vector Profile Scope | C | Pending |
 
 ## Performance Register
 | ID | Effect | Baseline FPS | After FPS | Delta | Optimizations Applied | Evidence |
@@ -75,6 +77,7 @@ Notes:
 | 07 | Lens Dot Bevel | - | - | - | - | - |
 | 08 | Mirror Zoom Tiles | - | - | - | - | - |
 | 09 | Chromatic Trails | - | - | - | - | - |
+| 10 | Vector Profile Scope | - | - | - | - | - |
 
 ## Effect Sheet 00 - Rutt-Etra CRT
 ### Baseline
