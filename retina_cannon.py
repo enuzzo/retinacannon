@@ -130,12 +130,14 @@ current_poster_color_mode = 0
 current_lensdot_color_mode = 0
 current_mirrorzoom_color_mode = 0
 current_chromatrail_color_mode = 0
+current_profilescope_color_mode = 0
 current_datamosh_amount = 2.0
 current_vhs_tracking = 1.5
 current_poster_levels = 4.0
 current_lensdot_detail = 2.6
 current_mirrorzoom_amount = 0.80
 current_chromatrail_intensity = 1.20
+current_profilescope_grid = 1.20
 DATAMOSH_AMOUNT_STEP = 0.25
 DATAMOSH_AMOUNT_MIN = 0.5
 DATAMOSH_AMOUNT_MAX = 6.0
@@ -154,6 +156,9 @@ MIRRORZOOM_AMOUNT_MAX = 1.6
 CHROMATRAIL_INTENSITY_STEP = 0.25
 CHROMATRAIL_INTENSITY_MIN = 0.5
 CHROMATRAIL_INTENSITY_MAX = 2.4
+PROFILESCOPE_GRID_STEP = 0.20
+PROFILESCOPE_GRID_MIN = 0.5
+PROFILESCOPE_GRID_MAX = 2.4
 current_effect_mode = 0
 current_view_mode = 0
 current_mirror_view = 1
@@ -188,6 +193,7 @@ LENSDOT_COLOR_MODE_NAMES = [
 ]
 MIRRORZOOM_COLOR_MODE_NAMES = ['Pulse', 'Wide Pulse', 'Hyper Pulse']
 CHROMATRAIL_COLOR_MODE_NAMES = ['RGB Trail', 'Neon Trail', 'Thermal Trail']
+PROFILESCOPE_COLOR_MODE_NAMES = ['Scope Mono', 'Camera Overlay', 'Tint Overlay', 'Thermal Overlay']
 EFFECT_MODE_NAMES = [
     'Rutt-Etra CRT',
     'ASCII Cam',
@@ -199,6 +205,7 @@ EFFECT_MODE_NAMES = [
     'Lens Dot Bevel',
     'Mirror Zoom Tiles',
     'Chromatic Trails',
+    'Vector Profile Scope',
 ]
 VIEW_MODE_NAMES = ['16:9', '4:3', 'Fisheye']
 
@@ -722,7 +729,8 @@ def _color_mode_name():
     if current_effect_mode == 6:   return POSTER_COLOR_MODE_NAMES[current_poster_color_mode]
     if current_effect_mode == 7:   return LENSDOT_COLOR_MODE_NAMES[current_lensdot_color_mode]
     if current_effect_mode == 8:   return MIRRORZOOM_COLOR_MODE_NAMES[current_mirrorzoom_color_mode]
-    return CHROMATRAIL_COLOR_MODE_NAMES[current_chromatrail_color_mode]
+    if current_effect_mode == 9:   return CHROMATRAIL_COLOR_MODE_NAMES[current_chromatrail_color_mode]
+    return PROFILESCOPE_COLOR_MODE_NAMES[current_profilescope_color_mode]
 
 def _active_color_mode():
     if current_effect_mode == 0:   return current_rutt_color_mode
@@ -734,7 +742,8 @@ def _active_color_mode():
     if current_effect_mode == 6:   return current_poster_color_mode
     if current_effect_mode == 7:   return current_lensdot_color_mode
     if current_effect_mode == 8:   return current_mirrorzoom_color_mode
-    return current_chromatrail_color_mode
+    if current_effect_mode == 9:   return current_chromatrail_color_mode
+    return current_profilescope_color_mode
 
 def _effect_code():
     return f'{current_effect_mode:02d}'
@@ -759,13 +768,15 @@ def _active_color_mode_count():
     if current_effect_mode == 6:   return len(POSTER_COLOR_MODE_NAMES)
     if current_effect_mode == 7:   return len(LENSDOT_COLOR_MODE_NAMES)
     if current_effect_mode == 8:   return len(MIRRORZOOM_COLOR_MODE_NAMES)
-    return len(CHROMATRAIL_COLOR_MODE_NAMES)
+    if current_effect_mode == 9:   return len(CHROMATRAIL_COLOR_MODE_NAMES)
+    return len(PROFILESCOPE_COLOR_MODE_NAMES)
 
 def _set_active_color_mode(mode):
     global current_rutt_color_mode, current_ascii_color_mode, current_pixelart_size
     global current_pixelart_color_mode, current_raster_color_mode
     global current_datamosh_color_mode, current_vhsburn_color_mode, current_poster_color_mode
-    global current_lensdot_color_mode, current_mirrorzoom_color_mode, current_chromatrail_color_mode
+    global current_lensdot_color_mode, current_mirrorzoom_color_mode
+    global current_chromatrail_color_mode, current_profilescope_color_mode
     if current_effect_mode == 0:   current_rutt_color_mode        = mode % len(RUTT_COLOR_MODE_NAMES)
     elif current_effect_mode == 1: current_ascii_color_mode       = mode % len(ASCII_COLOR_MODE_NAMES)
     elif current_effect_mode == 2:
@@ -777,7 +788,8 @@ def _set_active_color_mode(mode):
     elif current_effect_mode == 6: current_poster_color_mode       = mode % len(POSTER_COLOR_MODE_NAMES)
     elif current_effect_mode == 7: current_lensdot_color_mode      = mode % len(LENSDOT_COLOR_MODE_NAMES)
     elif current_effect_mode == 8: current_mirrorzoom_color_mode   = mode % len(MIRRORZOOM_COLOR_MODE_NAMES)
-    else:                          current_chromatrail_color_mode  = mode % len(CHROMATRAIL_COLOR_MODE_NAMES)
+    elif current_effect_mode == 9: current_chromatrail_color_mode  = mode % len(CHROMATRAIL_COLOR_MODE_NAMES)
+    else:                          current_profilescope_color_mode  = mode % len(PROFILESCOPE_COLOR_MODE_NAMES)
 
 def _cycle_active_color_mode(step):
     _set_active_color_mode(_active_color_mode() + step)
@@ -793,7 +805,8 @@ def _effect_param_label():
     if current_effect_mode == 6:   return f'[POSTER] Levels {int(current_poster_levels)}'
     if current_effect_mode == 7:   return f'[DOT] Detail {current_lensdot_detail:.2f}x'
     if current_effect_mode == 8:   return f'[MIRROR] Zoom {current_mirrorzoom_amount:.2f}x'
-    return f'[TRAIL] Intensity {current_chromatrail_intensity:.2f}x'
+    if current_effect_mode == 9:   return f'[TRAIL] Intensity {current_chromatrail_intensity:.2f}x'
+    return f'[SCOPE] Grid {current_profilescope_grid:.2f}x'
 
 def _slugify(text):
     s = ''.join(ch.lower() if ch.isalnum() else '-' for ch in text)
@@ -1090,6 +1103,8 @@ def on_render(frame, time):
             _d = current_mirrorzoom_amount
         elif current_effect_mode == 9:
             _d = current_chromatrail_intensity
+        elif current_effect_mode == 10:
+            _d = current_profilescope_grid
         else:
             _d = current_ascii_density
         glsl.glUniform1f(loc_ascii_density, c_float(_d))
@@ -1182,7 +1197,8 @@ def keyboard_thread():
     global current_rutt_wave, current_ascii_density, current_pixelart_size
     global current_raster_size
     global current_datamosh_amount, current_vhs_tracking, current_poster_levels
-    global current_lensdot_detail, current_mirrorzoom_amount, current_chromatrail_intensity
+    global current_lensdot_detail, current_mirrorzoom_amount
+    global current_chromatrail_intensity, current_profilescope_grid
     global current_effect_mode, current_view_mode, current_mirror_view, _ctrl_c_requested
     global _shot_deadline, _shot_last_seconds
     import termios
@@ -1257,6 +1273,8 @@ def keyboard_thread():
                         current_mirrorzoom_amount = min(MIRRORZOOM_AMOUNT_MAX, current_mirrorzoom_amount + MIRRORZOOM_AMOUNT_STEP)
                     elif current_effect_mode == 9:
                         current_chromatrail_intensity = min(CHROMATRAIL_INTENSITY_MAX, current_chromatrail_intensity + CHROMATRAIL_INTENSITY_STEP)
+                    elif current_effect_mode == 10:
+                        current_profilescope_grid = min(PROFILESCOPE_GRID_MAX, current_profilescope_grid + PROFILESCOPE_GRID_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif direction == 'left':
                     if current_effect_mode == 0:
@@ -1279,6 +1297,8 @@ def keyboard_thread():
                         current_mirrorzoom_amount = max(MIRRORZOOM_AMOUNT_MIN, current_mirrorzoom_amount - MIRRORZOOM_AMOUNT_STEP)
                     elif current_effect_mode == 9:
                         current_chromatrail_intensity = max(CHROMATRAIL_INTENSITY_MIN, current_chromatrail_intensity - CHROMATRAIL_INTENSITY_STEP)
+                    elif current_effect_mode == 10:
+                        current_profilescope_grid = max(PROFILESCOPE_GRID_MIN, current_profilescope_grid - PROFILESCOPE_GRID_STEP)
                     print(f'\r{_effect_param_label()}        ')
                 elif seq and seq[-1] in ('F', 'f'):
                     # Fallback for terminals that emit ESC...F for this key.

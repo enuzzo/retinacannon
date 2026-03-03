@@ -1124,6 +1124,59 @@ vec3 renderMirrorZoomTiles(vec2 uv, vec2 fragCoord) {    float zoomCtl = clamp(u
 
 vec3 renderChromaticTrails(vec2 uv, vec2 fragCoord) {    vec2 cuv = safeUV(cameraMirrorUV(uv));    float intensity = clamp(uAsciiDensity, 0.5, 2.4);    float inorm = (intensity - 0.5) / 1.9;    int tests = int(mix(6.0, 16.0, inorm));    float stride = mix(0.60, 1.20, inorm);    vec3 acc = vec3(0.0);    const int MAX_TESTS = 16;    for (int j = 0; j < MAX_TESTS; j++) {        if (j >= tests) break;        float fi = float(j);        vec2 suv = safeUV(cuv + vec2(0.0, -(fi * stride) / iResolution.y));        vec3 src = texture(iChannel0, suv).rgb;        vec3 wave = sin(fi / 40.0 + 6.2831853 * (vec3(0.0, 0.33, 0.66) + src)) * 0.5 + 0.5;        acc = max(acc, wave);    }    vec3 col = sin((vec3(0.0, 0.33, 0.66) + acc + cuv.y) * 6.2831853) * 0.5 + 0.5;    if (uColorMode == 1) {        col = clamp(col.gbr * vec3(1.25, 1.05, 1.20), 0.0, 1.0);    } else if (uColorMode == 2) {        col = thermalJet(getLuma(col));    }    float grain = (hash12(fragCoord + vec2(iTime * 33.0, iTime * 19.0)) - 0.5) * (0.02 + 0.02 * inorm);    col += grain;    return clamp(col, 0.0, 1.0);}
 
+float scopeAA(float v) {
+    return smoothstep(1.0, 0.0, abs(v) / max(fwidth(v), 1e-4));
+}
+
+vec3 scopeSample(vec2 uv, vec2 v2) {
+    vec3 src = texture(iChannel0, safeUV(cameraMirrorUV(uv))).rgb;
+    if (uColorMode == 2) {
+        src *= 1.0
+             + vec3(0.07, 0.03, 0.0)
+             + vec3(0.60, 0.20, 0.20) * v2.x
+             + vec3(0.18) * v2.y;
+    } else if (uColorMode == 3) {
+        src = thermalJet(getLuma(src));
+    }
+    return clamp(src, 0.0, 1.0);
+}
+
+vec3 renderVectorProfileScope(vec2 uv, vec2 fragCoord) {
+    vec2 U = safeUV(uv);
+    vec2 R = iResolution.xy;
+    float detail = clamp(uAsciiDensity, 0.5, 2.4);
+    float dNorm = (detail - 0.5) / 1.9;
+    float cellsX = mix(10.0, 96.0, dNorm);
+    vec2 G = vec2(cellsX, max(6.0, cellsX * R.y / R.x));
+    vec2 I = round(U * G) / G;
+    vec2 V = 2.0 * U - 1.0;
+    V *= V;
+    vec2 L = G * (U - I) + 0.5;
+
+    vec3 outCol = vec3(0.0);
+    if (uColorMode >= 1) {
+        outCol = scopeSample(U, V);
+        if (uColorMode == 1) {
+            outCol *= 0.95;
+        }
+    }
+
+    vec3 pH = scopeSample(vec2(U.x, I.y), V);
+    float hL = length(pH) * 0.57735026919;
+    float hW = scopeAA(L.y - hL);
+    outCol = mix(outCol, vec3(1.0), hW);
+
+    vec3 pV = scopeSample(vec2(I.x, U.y), V);
+    float vL = length(pV) * 0.57735026919;
+    float vW = scopeAA(L.x - vL);
+    outCol = mix(outCol, vec3(1.0), vW);
+
+    float cross = clamp(hW + vW, 0.0, 1.0);
+    outCol += vec3(0.08, 0.18, 0.10) * cross * ((uColorMode == 0) ? 0.90 : 0.45);
+
+    return clamp(sqrt(clamp(outCol, 0.0, 1.0)), 0.0, 1.0);
+}
+
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
     if (uViewMode == 0) {
@@ -1158,8 +1211,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         color = renderLensDotBevel(fragCoord);
     } else if (uEffectMode == 8) {
         color = renderMirrorZoomTiles(uv, fragCoord);
-    } else {
+    } else if (uEffectMode == 9) {
         color = renderChromaticTrails(uv, fragCoord);
+    } else {
+        color = renderVectorProfileScope(uv, fragCoord);
     }
     fragColor = vec4(color, 1.0);
 }

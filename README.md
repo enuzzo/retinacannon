@@ -39,7 +39,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 *(Sprinkled with emojis because let's face it: reading is hard, and a proper TL;DR needs them—kind of like a toddler needing a picture book instead of actual text).*
 
 * 📷 **The Pipeline:** Live Pi Cam → one GLSL Shader → Bare-Metal GPU. No desktop environment, no X11 bloat, zero compositor bullshit. Just pure graphical violence injected straight into the display hardware.
-* ⌨️ **The Controls:** Mash `Space` to cycle through 10 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
+* ⌨️ **The Controls:** Mash `Space` to cycle through 11 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
 * 🚀 **The Execution:** Run `./start_cannon.sh`, point the lens at a human face, and instantly generate pretentious living-room glitch art.
 * 💥 **The Dependencies:** You need a Raspberry Pi, a camera, and `kms-glsl`. If `glsl.so` is missing, the whole thing violently crashes and burns on launch. As it rightfully should.
 * 🔌 **The Flex:** Plug in HDMI + AC at a party, step back, and let everyone assume you spent six agonizing weeks coding a custom cyber-art installation.
@@ -48,7 +48,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ## Effects
 
-Ten effects, all in a single shader, switchable live with `Space`:
+Eleven effects, all in a single shader, switchable live with `Space`:
 
 | ID | Effect |
 |---|---|
@@ -62,11 +62,12 @@ Ten effects, all in a single shader, switchable live with `Space`:
 | 07 | Lens Dot Bevel |
 | 08 | Mirror Zoom Tiles |
 | 09 | Chromatic Trails |
+| 10 | Vector Profile Scope |
 
 ### Canonical Sub-Effect Catalog (EE.MM)
 
 Use `EE.MM` as the canonical ID:
-- `EE` = effect ID (`00..09`)
+- `EE` = effect ID (`00..10`)
 - `MM` = sub-effect/color-mode index (`01..N`)
 
 This is the reference to communicate changes, cleanup tasks, and future renames without ambiguity.
@@ -151,6 +152,14 @@ This is the reference to communicate changes, cleanup tasks, and future renames 
 | 09.01 | RGB Trail | RGB Trail | Multi-sample chromatic trail accumulation. | Red, green, blue |
 | 09.02 | Neon Trail | Neon Trail | Neon remap variant with stronger synthetic vibe. | Neon green, cyan, pink |
 | 09.03 | Thermal Trail | Thermal Trail | Trail output mapped to thermal pseudo-color. | Blue, yellow, red |
+
+#### 10 - Vector Profile Scope
+| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
+|---|---|---|---|---|
+| 10.01 | Scope Mono | Scope Mono | Black background with white horizontal/vertical profile traces. | White, black |
+| 10.02 | Camera Overlay | Camera Overlay | Source camera underlay with profile traces mixed on top. | Source RGB, white |
+| 10.03 | Tint Overlay | Tint Overlay | Shadertoy-style warm tint modulation plus profile traces. | Warm reds, source RGB, white |
+| 10.04 | Thermal Overlay | Thermal Overlay | Thermal remap underlay with oscilloscope profile traces. | Thermal blue/yellow/red, white |
 
 ### Rutt-Etra CRT
 
@@ -284,6 +293,19 @@ Temporal-looking chromatic accumulation with scanline-style trail stacking.
 
 `←` / `→` controls trail intensity (0.5–2.4).
 
+### Vector Profile Scope
+
+Variant inspired by Shadertoy profile-scope visuals: a quantized sampling grid builds horizontal and vertical luminance traces from the live camera stream.
+
+| Mode | Look |
+|---|---|
+| Scope Mono | Black background, white traces only |
+| Camera Overlay | Camera underlay with white profile traces |
+| Tint Overlay | Warm-tinted underlay with profile traces |
+| Thermal Overlay | Thermal underlay plus profile traces |
+
+`←` / `→` controls scope grid density (0.5–2.4).
+
 ---
 
 ## How it works
@@ -365,10 +387,10 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 
 | Key | Action |
 |---|---|
-| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Raster Vision → Digital Codec Corruption → VHS Tracking Burn → Posterize Glitch Comic → Lens Dot Bevel → Mirror Zoom Tiles → Chromatic Trails |
+| `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Raster Vision → Digital Codec Corruption → VHS Tracking Burn → Posterize Glitch Comic → Lens Dot Bevel → Mirror Zoom Tiles → Chromatic Trails → Vector Profile Scope |
 | `S` | 3-second countdown then save rendered screenshot to `shots/` |
 | `↑` / `↓` | Cycle color mode (per-effect, independent) |
-| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Raster: dot size · Codec: corruption amount · VHS: tracking · Poster: levels · Dot: detail · Mirror: zoom · Trail: intensity |
+| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Raster: dot size · Codec: corruption amount · VHS: tracking · Poster: levels · Dot: detail · Mirror: zoom · Trail: intensity · Scope: grid |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |
 | `M` | Toggle horizontal mirror of current view |
 | `F` | Toggle FPS logging to terminal |
@@ -418,6 +440,7 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | Lens Dot color | 07.01 Soft Bevel |
 | Mirror Zoom color | 08.01 Pulse |
 | Chromatic Trails color | 09.01 RGB Trail |
+| Vector Profile Scope color | 10.01 Scope Mono |
 | Rutt wave | 0.40 |
 | ASCII density | 3.00 |
 | Pixel block size | 6px (DMG Classic default) |
@@ -428,6 +451,7 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | Lens Dot detail | 2.6 |
 | Mirror Zoom amount | 0.80 |
 | Chromatic Trails intensity | 1.20 |
+| Vector Profile Scope grid | 1.20 |
 | FPS baseline | ~20 FPS |
 
 ---
