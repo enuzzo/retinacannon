@@ -58,6 +58,27 @@
   - above threshold, growth is proportional to extra delta
   - known current visual behavior: expansion can appear square-ish because dot ownership remains cell-based.
 
+## Hardware history
+
+### Raspberry Pi 4 (previous setup)
+- Camera: IMX219 standard FOV, 15-pin CSI ribbon cable
+- `camera_auto_detect=1` in `/boot/firmware/config.txt` worked out of the box
+- FPS baseline: ~20 FPS
+
+### Raspberry Pi 5 (current setup, March 2025)
+- Camera: IMX219 160° wide-angle (same sensor family, fisheye lens)
+- Port: **CAM0** (nearest to Ethernet/USB)
+- Cable: Official RPi5 15-to-22 pin adapter (RPi5 uses smaller 22-pin FPC connectors)
+- **Gotcha**: `camera_auto_detect=1` alone fails to detect IMX219 on RPi5.
+  Must add explicit overlay in `/boot/firmware/config.txt` under `[all]`:
+  ```
+  dtoverlay=imx219,cam0
+  ```
+- Camera is enumerated only at boot — hot-plugging won't work, reboot required.
+- Runtime test without reboot: `sudo dtoverlay imx219 cam0` then `rpicam-hello --list-cameras`
+- Troubleshooting: `dmesg | grep -i cfe` — no output means CSI driver didn't init for camera.
+- FPS baseline on RPi5: TBD (GPU is faster, expect improvement)
+
 ## Security and secrets
 - Rule: secrets live only in ignored local files (`config.local.h`, `.env.local`, etc.).
 - Any versioned templates must stay clean (`config.example.h`, `.env.example`).

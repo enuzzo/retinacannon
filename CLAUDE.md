@@ -67,6 +67,36 @@ Copyright (c) Netmilk Studio sagl — MIT License.
 - **kms-glsl detected by `glsl.so`** — path resolution checks for `glsl.so` (not
   a `lib/` directory, which doesn't exist in this repo's kms-glsl layout).
 
+## Hardware setup
+
+### Raspberry Pi 4 (previous)
+
+- **Camera**: IMX219 standard FOV, connected via 15-pin CSI ribbon cable
+- `camera_auto_detect=1` in `/boot/firmware/config.txt` was sufficient
+- FPS baseline: ~20 FPS
+
+### Raspberry Pi 5 (current)
+
+- **Camera**: IMX219 160° wide-angle (same sensor, fisheye lens)
+- **Port**: CAM0 (nearest to Ethernet/USB)
+- **Cable**: Official RPi5 15-to-22 pin adapter (RPi5 uses 22-pin FPC connectors)
+- **Critical**: `camera_auto_detect=1` may fail to detect IMX219 on RPi5.
+  Fix: add explicit overlay in `/boot/firmware/config.txt` under `[all]`:
+  ```
+  dtoverlay=imx219,cam0
+  ```
+- Camera is only enumerated at boot — hot-plugging won't work, reboot required.
+- FPS baseline: TBD (RPi5 GPU is faster, expect improvement over RPi4)
+
+### Troubleshooting camera detection
+
+1. `rpicam-hello --list-cameras` — must show the IMX219 sensor
+2. If not detected, check `dmesg | grep -i cfe` — no output means CSI driver
+   didn't initialize for the camera
+3. `sudo dtoverlay imx219 cam0` — runtime test before rebooting
+4. Verify flat cable orientation: contacts face the PCB on both ends
+5. Try the other CSI port (CAM0 ↔ CAM1) if still not detected
+
 ## External dependency: kms-glsl
 
 **Path resolution order** (both Python and shell scripts):
