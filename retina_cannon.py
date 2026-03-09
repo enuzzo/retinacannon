@@ -116,9 +116,9 @@ loc_motion_level = -1
 loc_presence_scale = -1
 loc_presence_cx = -1
 loc_presence_cy = -1
-current_rutt_color_mode = 2
+current_rutt_color_mode = 0
 current_ascii_color_mode = 0
-current_pixelart_color_mode = 1
+current_pixelart_color_mode = 0
 current_rutt_wave = 0.40
 current_ascii_density = 3.00
 current_pixelart_size = 6.0
@@ -173,10 +173,10 @@ PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
 
-RUTT_COLOR_MODE_NAMES = ['Wire Mono', 'Phosphor', 'Prism Warp', 'Mega Wave', 'Prism Surge']
+RUTT_COLOR_MODE_NAMES = ['Prism Warp', 'Phosphor', 'Wire Mono', 'Mega Wave', 'Prism Surge', 'v002 Terrain']
 ASCII_COLOR_MODE_NAMES = ['Symbol Color', 'Symbol Mono', 'Dense Mono Mix', 'Dense Color Mix']
-PIXELART_COLOR_MODE_NAMES = ['Pixel Native', 'DMG Classic', 'Toxic Candy']
-PIXELART_MODE_DEFAULT_SIZES = [4.0, 6.0, 8.0]
+PIXELART_COLOR_MODE_NAMES = ['Game Boy', 'Pixel Native', 'Toxic Candy']
+PIXELART_MODE_DEFAULT_SIZES = [6.0, 4.0, 8.0]
 RASTER_COLOR_MODE_NAMES = ['Thermal Raster', 'Thermal Inverted', 'Comic Ink Mono', 'Comic Pastel', 'Vibrant Pop']
 DATAMOSH_COLOR_MODE_NAMES = ['RGB Mosh', 'Thermal Glitch', 'Acid Trip', 'Void Codec']
 VHSBURN_COLOR_MODE_NAMES  = ['Signal Melt', 'Night Tape']
@@ -745,6 +745,23 @@ def _active_color_mode():
     if current_effect_mode == 9:   return current_chromatrail_color_mode
     return current_profilescope_color_mode
 
+# Remap Python color-mode index → shader uColorMode value.
+# Python arrays are ordered for user-facing logic (first = default at launch).
+# The shader was written with a different index order; this table keeps the
+# GLSL untouched while letting Python own the canonical order.
+_SHADER_COLOR_REMAP = {
+    0: [2, 1, 0, 3, 4, 5], # Rutt: Prism Warp(→2), Phosphor(→1), Wire Mono(→0), Mega Wave(→3), Prism Surge(→4), v002 Terrain(→5)
+    2: [1, 0, 2],          # Pixel Art: Game Boy(→1), Pixel Native(→0), Toxic Candy(→2)
+}
+
+def _shader_color_mode():
+    """Return the uColorMode value to send to the shader."""
+    cm = _active_color_mode()
+    remap = _SHADER_COLOR_REMAP.get(current_effect_mode)
+    if remap and cm < len(remap):
+        return remap[cm]
+    return cm
+
 def _effect_code():
     return f'{current_effect_mode:02d}'
 
@@ -1030,7 +1047,7 @@ def on_init(program, width, height):
     if loc_channel1 >= 0:
         glsl.glUniform1i(loc_channel1, 1)
     if loc_color_mode >= 0:
-        glsl.glUniform1i(loc_color_mode, _active_color_mode())
+        glsl.glUniform1i(loc_color_mode, _shader_color_mode())
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
@@ -1087,7 +1104,7 @@ def on_render(frame, time):
         _prev_frame_for_shader = None
         _prev_frame_lag_counter = 0
     if loc_color_mode >= 0:
-        glsl.glUniform1i(loc_color_mode, _active_color_mode())
+        glsl.glUniform1i(loc_color_mode, _shader_color_mode())
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:

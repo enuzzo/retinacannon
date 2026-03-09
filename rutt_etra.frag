@@ -285,6 +285,54 @@ vec3 drawFpsOverlay(vec3 color, vec2 fragCoord) {
     return color;
 }
 
+vec3 renderRuttV002(vec2 uv, vec2 fragCoord) {
+    // v002 / Joy Division terrain style — single-pass, no loop.
+    // Occlusion: if the line above displaced down past us, we go dark.
+    vec2 mUV = cameraMirrorUV(uv);
+
+    float ext = EXTRUSION * uRuttWave * 2.0;
+    float spacing = 1.0 / LINES;
+
+    // Which line owns this pixel
+    float baseI = floor(mUV.y * LINES);
+    float normI = baseI / LINES;
+    vec3 texColor = texture(iChannel0, safeUV(vec2(mUV.x, normI))).rgb;
+    float luma = getLuma(texColor);
+    float lineY = normI + luma * ext;
+    float dist = abs(mUV.y - lineY);
+
+    // Line rendering — same as standard Rutt
+    float lineAlpha = 1.0 - smoothstep(0.0, LINE_WIDTH, dist);
+    float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.24 * luma;
+    float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, abs(mUV.y - normI));
+
+    vec3 lineCol = texColor * 2.2;
+    vec3 color = lineCol * (lineAlpha + glow);
+    color += lineCol * scaffold * (0.10 + 0.18 * luma);
+
+    // Occlusion from lines directly above
+    float occlude = 0.0;
+    for (float k = 1.0; k <= 3.0; k++) {
+        float aboveI = (baseI + k) / LINES;
+        if (aboveI > 1.0) break;
+        float aboveLuma = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, aboveI))).rgb);
+        float aboveLineY = aboveI + aboveLuma * ext;
+        float below = aboveLineY - mUV.y;
+        occlude = max(occlude, smoothstep(spacing * 0.5, -spacing * 0.05, below));
+    }
+
+    // Soft occlusion — keeps lines visible even behind peaks
+    color *= mix(1.0, 0.15, occlude);
+
+    // CRT post
+    float scan = 0.97 + 0.03 * sin((mUV.y * iResolution.y) * PI);
+    float vignette = pow(clamp(16.0 * mUV.x * mUV.y * (1.0 - mUV.x) * (1.0 - mUV.y), 0.0, 1.0), 0.20);
+    float noise = (hash12(fragCoord + vec2(iTime * 48.0, iTime * 17.0)) - 0.5) * NOISE_STRENGTH;
+    color *= scan * mix(0.72, 1.0, vignette);
+    color += noise;
+    return clamp(color, 0.0, 1.0);
+}
+
 vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleBase = cameraMirrorUV(uv);
     if (uColorMode == 2) {
@@ -1188,7 +1236,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     vec3 color;
     if (uEffectMode == 0) {
-        color = renderRutt(uv, fragCoord);
+        color = (uColorMode == 5) ? renderRuttV002(uv, fragCoord) : renderRutt(uv, fragCoord);
     } else if (uEffectMode == 1) {
         color = renderAscii(uv, fragCoord);
     } else if (uEffectMode == 2) {
