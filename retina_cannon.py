@@ -657,6 +657,220 @@ def _print_nfo_static(box_w, cols):
 
     pline(_nfo_bot(box_w))
 
+# ── Matrix reveal / cover animation ─────────────────────────────────────────
+
+_MATRIX_TRAIL_COLORS = [
+    '\033[1;97m',      # 0 head  — bright white flash
+    '\033[1;92m',      # 1       — bright green
+    '\033[32m',        # 2       — green
+    '\033[2;32m',      # 3       — dim green
+    '\033[38;5;22m',   # 4       — dark green
+    '\033[38;5;22m',   # 5       — dark green (extra fade)
+]
+_MATRIX_TRAIL_CHARS = ['▓', '▓', '▒', '░', '·', ' ']
+_MATRIX_HEAD_CHARS  = '▓█▒'
+
+def _build_splash_lines(cols, rows):
+    """Pre-compute wide-terminal splash as list of (plain_text, styled_text) pairs.
+
+    Each pair maps to one terminal row starting from row 1.
+    plain_text  — ANSI-stripped, used for char lookup during animation.
+    styled_text — full ANSI string, used for final repaint after reveal.
+    Returns (lines, quote_raw).
+    """
+    box_w   = min(cols, 80)
+    title   = _figlet_title_lines(max_width=cols)
+    quote_raw = random.choice(_BOOT_LINES)
+
+    title_h   = len(title)
+    content_h = title_h + 1 + 11 + 1 + 1 + 1   # title + blank + box + blank + quote + blank
+    top_pad   = max(1, (rows - content_h) // 2)
+
+    lines = []
+
+    # Vertical padding
+    for _ in range(top_pad):
+        lines.append(('', ''))
+
+    # Title — lolcat colored
+    centered_title = [_center_text_line(ln, cols) for ln in title]
+    plain_block    = '\n'.join(centered_title) + '\n'
+    styled_block   = _lolcat_colorize(plain_block)
+    styled_t_lines = (styled_block.rstrip('\n').split('\n')
+                      if styled_block else list(centered_title))
+    while len(styled_t_lines) < len(centered_title):
+        styled_t_lines.append('')
+    for plain, styled in zip(centered_title, styled_t_lines):
+        lines.append((plain, styled))
+
+    # Blank after title
+    lines.append(('', ''))
+
+    # NFO box (11 lines)
+    margin = ' ' * max(0, (cols - box_w) // 2)
+    nfo_styled = [
+        margin + _nfo_top(box_w),
+        margin + _nfo_meta_line('GRP',  'Netmilk Studio sagl',
+                                'REL',  'v3.0 [FINAL]',                      box_w),
+        margin + _nfo_meta_line('TYPE', 'Realtime GLSL Engine',
+                                'DATE', datetime.now().strftime('%Y-%m-%d'),  box_w),
+        margin + _nfo_meta_line('PLAT', 'Raspberry Pi / kms-glsl',
+                                'EFXS', f'{len(EFFECT_MODE_NAMES)} x .frag', box_w),
+        margin + _nfo_sep(box_w),
+        margin + _nfo_status_line('Acquiring DRM master',                     box_w),
+        margin + _nfo_status_line('Loading GLSL pipeline',                    box_w),
+        margin + _nfo_status_line(f'Calibrating Pi camera ({CAM_W}\u00d7{CAM_H})', box_w),
+        margin + _nfo_status_line('Motion detection warmup',                  box_w),
+        margin + _nfo_status_line('Keyboard controller ready',                box_w),
+        margin + _nfo_bot(box_w),
+    ]
+    for s in nfo_styled:
+        lines.append((_ANSI_STRIP_RE.sub('', s), s))
+
+    # Blank above quote
+    lines.append(('', ''))
+
+    # Quote — full brightness (the reveal IS the entrance effect)
+    quote_short = quote_raw[:cols - 4] if len(quote_raw) > cols - 4 else quote_raw
+    centered_q  = _center_text_line('\u201c' + quote_short + '\u201d', cols)
+    lines.append((centered_q, '\033[1;97m' + centered_q + ANSI_RESET))
+
+    # Blank below quote
+    lines.append(('', ''))
+
+    return lines, quote_raw
+
+
+def _matrix_reveal_animation(content_lines, cols):
+    """Matrix rain drops reveal content_lines from a black screen.
+
+    content_lines : list of (plain_text, styled_text), one per terminal row from row 1.
+    cols          : terminal column count.
+    Screen must be cleared to black before calling.
+    Cursor is left at row len(content_lines)+1, col 1 on return.
+    """
+    n_rows   = len(content_lines)
+    trail    = len(_MATRIX_TRAIL_COLORS)   # 6
+    frame_dt = 0.033                       # ~30 fps — local display, no SSH latency
+
+    stagger  = max(2, n_rows // 4)
+    speeds   = [random.choice([1, 2, 2, 2]) for _ in range(cols)]
+    drop_row = [random.randint(-stagger, 0)  for _ in range(cols)]
+
+    # Per-row revealed flag (we reveal whole rows at once for clean ANSI handling)
+    row_revealed = [False] * n_rows
+
+    out = sys.stdout
+
+    def _reveal_row(row):
+        if row_revealed[row]:
+            return
+        row_revealed[row] = True
+        _plain, styled = content_lines[row]
+        out.write(f'\033[{row + 1};1H' + styled + '\033[K')
+
+    active = list(range(cols))
+    while active:
+        next_active = []
+        for c in active:
+            drop_row[c] += speeds[c]
+            r = drop_row[c]
+
+            # Draw drop head + fading trail
+            for t in range(trail):
+                tr = r - t
+                if 0 <= tr < n_rows:
+                    ch = (random.choice(_MATRIX_HEAD_CHARS) if t == 0
+                          else _MATRIX_TRAIL_CHARS[t])
+                    out.write(f'\033[{tr + 1};{c + 1}H'
+                              f'{_MATRIX_TRAIL_COLORS[t]}{ch}\033[0m')
+
+            # Reveal the row once the full trail has passed it
+            reveal_r = r - trail
+            if 0 <= reveal_r < n_rows:
+                _reveal_row(reveal_r)
+
+            if r < n_rows + trail + 2:
+                next_active.append(c)
+            else:
+                # Column finished — flush any unrevealed rows
+                for row in range(n_rows):
+                    _reveal_row(row)
+
+        active = next_active
+        out.flush()
+        time.sleep(frame_dt)
+
+    # Final repaint: ensure every row shows its proper styled text
+    for row_idx, (_plain, styled) in enumerate(content_lines):
+        out.write(f'\033[{row_idx + 1};1H' + styled + '\033[K')
+    out.write(f'\033[{n_rows + 1};1H')
+    out.flush()
+
+
+def _matrix_cover_animation(n_rows, cols):
+    """Matrix rain drops cover terminal rows 1..n_rows back to black.
+
+    Called just before _clear_to_black() + DRM handoff.
+    """
+    trail    = 5
+    frame_dt = 0.025   # ~40 fps on local display
+    cover_colors = [
+        '\033[1;92m',      # head   — bright green
+        '\033[32m',        # t-1    — green
+        '\033[2;32m',      # t-2    — dim green
+        '\033[38;5;22m',   # t-3    — dark green
+        '\033[38;5;232m',  # t-4    — near-black
+    ]
+    cover_chars = ['▓', '▒', '░', '·', ' ']
+
+    stagger  = max(1, n_rows // 6)
+    speeds   = [random.choice([2, 2, 3]) for _ in range(cols)]
+    drop_row = [random.randint(-stagger, 0) for _ in range(cols)]
+    row_erased = [False] * n_rows
+
+    out = sys.stdout
+
+    def _erase_row(row):
+        if row_erased[row]:
+            return
+        row_erased[row] = True
+        out.write(f'\033[{row + 1};1H\033[2K')
+
+    active = list(range(cols))
+    while active:
+        next_active = []
+        for c in active:
+            drop_row[c] += speeds[c]
+            r = drop_row[c]
+
+            for t in range(trail):
+                tr = r - t
+                if 0 <= tr < n_rows:
+                    ch = random.choice('▓▒') if t == 0 else cover_chars[t]
+                    out.write(f'\033[{tr + 1};{c + 1}H'
+                              f'{cover_colors[t]}{ch}\033[0m')
+
+            erase_r = r - trail
+            if 0 <= erase_r < n_rows:
+                _erase_row(erase_r)
+
+            if r < n_rows + trail + 2:
+                next_active.append(c)
+            else:
+                for row in range(n_rows):
+                    _erase_row(row)
+
+        active = next_active
+        out.flush()
+        time.sleep(frame_dt)
+
+    # Hard clear (belt + suspenders)
+    for row in range(n_rows):
+        out.write(f'\033[{row + 1};1H\033[2K')
+    out.flush()
+
+
 def _print_vhs_splash(countdown_seconds):
     cols, rows = _term_size()
 
@@ -678,51 +892,38 @@ def _print_vhs_splash(countdown_seconds):
         _show_cursor()
         return
 
-    # Wide terminal: figlet title FULL WIDTH above box, not inside
-    box_w = min(cols, 80)
-    title = _figlet_title_lines(max_width=cols)   # full terminal width
-    quote = random.choice(_BOOT_LINES)
-
-    title_h = len(title)
-    # box=11, blank_above_quote=1, quote=1, blank_below_quote=1, countdown=1
-    content_h = title_h + 1 + 11 + 1 + 1 + 1 + 1
-    top_pad = max(1, (rows - content_h) // 2)
+    # Wide terminal: build content buffer, animate reveal, countdown, cover.
+    content_lines, _quote = _build_splash_lines(cols, rows)
+    n_content = len(content_lines)
 
     _clear_to_black()
-    print('\n' * top_pad, end='')
-    _print_centered_title(title, cols)
-    print()
-    _print_nfo_static(box_w, cols)
+    _matrix_reveal_animation(content_lines, cols)
 
-    # Centered quote — glows from dark gray to bright white
-    quote_short = quote[:cols - 4] if len(quote) > cols - 4 else quote
-    centered_q = _center_text_line('\u201c' + quote_short + '\u201d', cols)
-    _glow = ['\033[38;5;238m', '\033[38;5;243m', '\033[38;5;248m', '\033[38;5;253m', '\033[1;97m']
-    print()   # blank line above quote
-    print(_glow[0] + centered_q + ANSI_RESET, flush=True)
-    for _gc in _glow[1:]:
-        time.sleep(0.08)
-        print('\033[1A\r' + _gc + centered_q + ANSI_RESET + '\033[K', flush=True)
-    print()   # blank line below quote (spacing before countdown)
+    # Position cursor at the countdown row (one below last content line)
+    sys.stdout.write(f'\033[{n_content + 1};1H')
+    sys.stdout.flush()
 
     if countdown_seconds < 0:
         print(_styled('  >> HOLD — press any key to continue', ANSI_YELLOW, bold=True))
         _wait_splash_release()
     else:
-        start = max(1, int(countdown_seconds))
-        bar_w = min(cols * 30 // 100, 40)
+        start   = max(1, int(countdown_seconds))
+        bar_w   = min(cols * 30 // 100, 40)
         for n in range(start, -1, -1):
-            label = f'LAUNCHING IN {n} '
-            filled = round(bar_w * (start - n) / max(start, 1))
-            empty = bar_w - filled
-            bar_str = _styled('█' * filled, ANSI_BRIGHT_GREEN) + _styled('░' * empty, ANSI_DARK_GRAY)
-            content_str = _styled(label, ANSI_YELLOW, bold=True) + bar_str
+            label         = f'LAUNCHING IN {n} '
+            filled        = round(bar_w * (start - n) / max(start, 1))
+            empty         = bar_w - filled
+            bar_str       = (_styled('█' * filled, ANSI_BRIGHT_GREEN)
+                             + _styled('░' * empty, ANSI_DARK_GRAY))
+            content_str   = _styled(label, ANSI_YELLOW, bold=True) + bar_str
             content_vis_w = len(label) + bar_w
-            margin = ' ' * max(0, (cols - content_vis_w) // 2)
+            margin        = ' ' * max(0, (cols - content_vis_w) // 2)
             print('\r' + margin + content_str + '\033[K', end='', flush=True)
             time.sleep(1.0)
         print()
 
+    # Cover transition: matrix rain erases screen before DRM takes the display
+    _matrix_cover_animation(rows, cols)
     _clear_to_black()
     _show_cursor()
 
