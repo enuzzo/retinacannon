@@ -412,11 +412,14 @@ So yes, your shader experiments are timestamped evidence now. Very professional.
 
 ## Startup / Shutdown
 
-On boot, after camera and GL init:
-- Figlet title printed full-width above the status box, lolcat-colorized
-- NFO/cracktro-style status box: hostname, SoC temperature, RAM, uptime, shader, active effect
-- Random demoscene boot quote, centered with a white glow fade-in
-- 5-second countdown bar before the renderer takes over
+On boot, the terminal runs a 3-phase animated sequence before the renderer takes over:
+
+1. **Matrix rain reveal** — columns of B/W block characters (`█▓▒░·`) cascade down the full screen height. As each column's trail passes a row, that row's content materializes in gray. Trail fades from bright white to dark gray with no color — pure monochrome rain.
+2. **Colorize** — once all drops have finished, rows light up in full color in random order over ~0.6s, scattering across the screen like a static discharge: lolcat rainbow on the figlet title, electric cyan on the NFO box borders, white on the metadata.
+3. **Countdown** — `LAUNCHING IN N ████░░` progress bar runs below the revealed content.
+4. **Matrix cover** — a faster reverse sweep erases everything back to black before DRM takes the display. The camera feed appears in fullscreen.
+
+The NFO/cracktro status box shows: hostname, SoC temperature, RAM, uptime, shader, active effect. The boot quote is rendered as `>>  quote  <<` (dim brackets, bright text — pure ASCII, Pi framebuffer safe).
 
 On shutdown: clean session stats (duration, estimated frames, average FPS) plus a randomly chosen send-off line.
 
