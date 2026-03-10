@@ -73,13 +73,12 @@ Use `EE.MM` as the canonical ID:
 This is the reference to communicate changes, cleanup tasks, and future renames without ambiguity.
 
 #### 00 - Rutt-Etra CRT
-| Code | Name | Legacy Alias | Brief Description | Dominant Colors |
-|---|---|---|---|---|
-| 00.01 | Wire Mono | B/W | Classic white scanline wireframe on black background. | White, black |
-| 00.02 | Phosphor | Analog RGB | P31-style green phosphor, luma drives line intensity and glow. | Phosphor green |
-| 00.03 | Prism Warp | Prism Warp | Subtle chromatic RGB split with camera color bleed — the signature default look. | Camera colors, cyan tint |
-| 00.04 | Mega Wave | Mega Wave | Wider wave motion and horizontal blend across lines. | Orange, cyan, blue |
-| 00.05 | Prism Surge | Prism Surge | Extreme prism split and aggressive displacement. | Neon cyan, violet, hot pink |
+| Code | Name | Brief Description | ↑/↓ secondary tweak |
+|---|---|---|---|
+| 00.01 | Prism Warp | Subtle chromatic RGB split with camera color bleed — default look. ←/→ = wave. | Chromatic split width (0.1–5.0, default 1.0) |
+| 00.02 | Phosphor | P31-style phosphor CRT. ←/→ = wave. | Phosphor tint: 0=cyan · 1=green · 2=amber (default 1.0) |
+| 00.03 | Wire Mono | Classic white scanline wireframe on black. ←/→ = wave. | Displacement contrast gamma (0.2–3.0, default 1.0) |
+| 00.04 | v002 Terrain | Joy Division–style terrain with scan-line interference. ←/→ = wave. | Interference between adjacent lines (0.5–5.0, default 1.5) |
 
 #### 01 - ASCII Cam
 | Code | Name | Legacy Alias | Brief Description | Dominant Colors |
@@ -167,15 +166,16 @@ In 1973, [Bill Rutt and Steve Etra](https://en.wikipedia.org/wiki/Rutt/Etra_Vide
 
 This is the same thing. In GLSL. On a $40 computer. Running at 20 FPS.
 
-Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field. Higher modes progressively increase displacement, with 00.05 and 00.06 intentionally extreme.
+Frame luminance warps the scan lines. CRT curvature bends the edges. Vignette darkens the corners. Noise adds grain. Your face becomes a vector field.
 
-| Mode | Look |
-|---|---|
-| Wire Mono | Classic white scan lines on black — the gold standard |
-| Phosphor | P31 green phosphor tube — luma drives intensity, shadows stay green |
-| Prism Warp | Subtle RGB split with camera bleed — the signature default |
-| Mega Wave | Ultra-bright displaced blend with moving candy ribbons (extreme) |
-| Prism Surge | Maximum prism split and high-energy distortion (extreme) |
+Every sub-mode now has a **secondary parameter on ↑/↓** — a second dimension of expression beyond wave intensity.
+
+| Mode | Look | ↑/↓ does |
+|---|---|---|
+| Prism Warp | Subtle RGB split with camera bleed — the default | Chromatic split width: narrow to full blowout |
+| Phosphor | P31 green phosphor tube | Tint sweep: cold cyan → classic green → warm amber |
+| Wire Mono | Classic white scan lines on black | Displacement contrast: flat uniform → bright spikes only |
+| v002 Terrain | Joy Division terrain with luminance mountains | Interference: independent lines → coupled wave peaks |
 
 ### ASCII Cam
 
@@ -192,13 +192,11 @@ Every camera pixel gets mapped to a glyph from an 8×8 bitmap font hardcoded ins
 
 The camera downsampled to a grid of blocks, each rendered as a single pixel of a retro palette. The block size is tunable from near-native (4px) to aggressively chunky (48px). Cycling color mode applies a per-mode default block size first, then `←` / `→` still tweak live.
 
-| Mode | Look | Default size |
-|---|---|---|
-| Pixel Native | Pixelated camera, colors corrected | 4px |
-| DMG Classic | DMG-01 four-shade green + authentic LCD pixel gap | 6px |
-| Toxic Candy | Neon candy palette — aggressively quantized, with rounded pixel corners | 8px |
-
-Default at startup for Pixel Art is **DMG Classic** (green blocks), even if it is mode index `1` in the list above.
+| Mode | Code | Look | Default size |
+|---|---|---|---|
+| Game Boy | 02.01 | DMG-01 four-shade green + authentic LCD pixel gap | 6px |
+| Pixel Native | 02.02 | Pixelated camera, colors corrected | 4px |
+| Toxic Candy | 02.03 | Neon candy palette — aggressively quantized, with rounded pixel corners | 8px |
 
 ### Raster Vision
 
@@ -332,7 +330,7 @@ capture thread ──(threading.Lock)──▶ latest frame
 
 **Render**: `kms-glsl`'s C loop fires a Python callback every frame. The callback uploads the texture and pushes all uniforms to the GPU.
 
-**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, ten visual systems, routed by `uEffectMode`.
+**Shader**: all visual logic lives in `rutt_etra.frag`. One fragment shader, eleven visual systems, routed by `uEffectMode`.
 
 **Keyboard**: a separate thread reads `/dev/tty` in raw mode (`ICANON`, `ECHO`, `ISIG` all disabled). Ctrl+C arrives as `\x03` bytes and triggers graceful shutdown. `SIGTERM` and `SIGHUP` are also handled — kill from SSH works cleanly.
 
@@ -389,8 +387,9 @@ kill -SIGINT $(pgrep -f retina_cannon.py)
 |---|---|
 | `Space` | Cycle effect: Rutt-Etra → ASCII Cam → Pixel Art → Raster Vision → Digital Codec Corruption → VHS Tracking Burn → Posterize Glitch Comic → Lens Dot Bevel → Mirror Zoom Tiles → Chromatic Trails → Vector Profile Scope |
 | `S` | 3-second countdown then save rendered screenshot to `shots/` |
-| `↑` / `↓` | Cycle color mode (per-effect, independent) |
-| `←` / `→` | Rutt: wave intensity · ASCII: char density · Pixel: block size · Raster: dot size · Codec: corruption amount · VHS: tracking · Poster: levels · Dot: detail · Mirror: zoom · Trail: intensity · Scope: grid |
+| `PgUp` / `PgDn` | Cycle color mode (per-effect, independent) |
+| `↑` / `↓` | Per-effect secondary tweak — Rutt: sub-mode parameter (split / tint / contrast / interference); other effects: not yet assigned |
+| `←` / `→` | Primary parameter — Rutt: wave · ASCII: density · Pixel: block size · Raster: dot size · Codec: amount · VHS: tracking · Poster: levels · Dot: detail · Mirror: zoom · Trail: intensity · Scope: grid |
 | `V` | Cycle view: 16:9 → 4:3 → Fisheye |
 | `M` | Toggle horizontal mirror of current view |
 | `F` | Toggle FPS logging to terminal |
@@ -430,9 +429,9 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | View mode | 16:9 |
 | Mirror | ON (because the camera should stop gaslighting you) |
 | Effect | Rutt-Etra CRT |
-| Rutt color | 00.03 Prism Warp |
+| Rutt color | 00.01 Prism Warp |
 | ASCII color | 01.01 Symbol Color |
-| Pixel Art color | 02.02 DMG Classic |
+| Pixel Art color | 02.01 Game Boy |
 | Raster Vision color | 03.01 Thermal Raster |
 | Codec color | 04.01 RGB Mosh |
 | VHS color | 05.01 Signal Melt |
@@ -441,9 +440,9 @@ On shutdown: clean session stats (duration, estimated frames, average FPS) plus 
 | Mirror Zoom color | 08.01 Pulse |
 | Chromatic Trails color | 09.01 RGB Trail |
 | Vector Profile Scope color | 10.01 Scope Mono |
-| Rutt wave | 0.40 |
+| Rutt wave | 0.40 (range 0.05–3.80, extended left) |
 | ASCII density | 3.00 |
-| Pixel block size | 6px (DMG Classic default) |
+| Pixel block size | 6px (Game Boy default) |
 | Raster dot size | 12px |
 | Codec amount | 2.0 |
 | VHS tracking | 1.5 |

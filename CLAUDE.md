@@ -128,10 +128,10 @@ On the target Raspberry Pi:
 | `iChannel0` | sampler2D | Camera texture (BGR uploaded as GL_RGB — `.bgr` swizzle to correct) |
 | `iResolution` | vec2 | Display resolution (set by kms-glsl) |
 | `iTime` | float | Elapsed time in seconds (set by kms-glsl) |
-| `uEffectMode` | int | 0=Rutt, 1=ASCII, 2=PixelArt, 3=Raster, 4=Codec, 5=VHS, 6=Poster, 7=LensDot, 8=MirrorZoom, 9=ChromaticTrails |
+| `uEffectMode` | int | 0=Rutt, 1=ASCII, 2=PixelArt, 3=Raster, 4=Codec, 5=VHS, 6=Poster, 7=LensDot, 8=MirrorZoom, 9=ChromaticTrails, 10=VectorProfileScope |
 | `uColorMode` | int | Per-effect color palette index |
 | `uRuttWave` | float | Rutt-Etra displacement multiplier (0.40–3.80) |
-| `uAsciiDensity` | float | Shared per-effect scalar (ASCII density / codec amount / VHS tracking / poster levels / lens detail / mirror zoom / trail intensity) |
+| `uAsciiDensity` | float | Shared per-effect scalar (ASCII density / codec amount / VHS tracking / poster levels / lens detail / mirror zoom / trail intensity); for Rutt-Etra routes the ↑/↓ secondary param per sub-mode (split / tint / contrast / interference) |
 | `uPixelSize` | float | Pixel Art block size / Raster dot-cell size in screen pixels (4–48) |
 | `uViewMode` | int | 0=16:9, 1=4:3, 2=Fisheye |
 | `uMirror` | int | 0=off, 1=horizontal mirror of current view |
@@ -145,25 +145,31 @@ On the target Raspberry Pi:
 
 ## Effect color modes
 
-**Rutt-Etra (uEffectMode=0):** Wire Mono · Phosphor · Prism Warp · Mega Wave · Prism Surge
+Naming convention: `NN` = effect index, `NN.MM` = color variant (1-based, matches ↑ cycling order
+from the default). The list order below is the exact array order in `retina_cannon.py` — `NN.01`
+is always the default (index 0), and ↑ arrow increments through the list.
 
-**ASCII Cam (uEffectMode=1):** Symbol Color · Symbol Mono · Dense Mono Mix · Dense Color Mix
+**Rutt-Etra (uEffectMode=0):** 00.01 Prism Warp · 00.02 Phosphor · 00.03 Wire Mono · 00.04 v002 Terrain
 
-**Pixel Art (uEffectMode=2):** Pixel Native · DMG Classic · Toxic Candy
+**ASCII Cam (uEffectMode=1):** 01.01 Symbol Color · 01.02 Symbol Mono · 01.03 Dense Mono Mix · 01.04 Dense Color Mix
 
-**Raster Vision (uEffectMode=3):** Thermal Raster · Thermal Inverted · Comic Ink Mono · Comic Pastel · Vibrant Pop
+**Pixel Art (uEffectMode=2):** 02.01 Game Boy · 02.02 Pixel Native · 02.03 Toxic Candy
 
-**Digital Codec Corruption (uEffectMode=4):** RGB Mosh · Thermal Glitch · Acid Trip · Void Codec
+**Raster Vision (uEffectMode=3):** 03.01 Thermal Raster · 03.02 Thermal Inverted · 03.03 Comic Ink Mono · 03.04 Comic Pastel · 03.05 Vibrant Pop
 
-**VHS Tracking Burn (uEffectMode=5):** Signal Melt · Night Tape
+**Digital Codec Corruption (uEffectMode=4):** 04.01 RGB Mosh · 04.02 Thermal Glitch · 04.03 Acid Trip · 04.04 Void Codec
 
-**Posterize Glitch Comic (uEffectMode=6):** Warhol Pop · Neon Cel · Acid Bloom · Plasma Burn
+**VHS Tracking Burn (uEffectMode=5):** 05.01 Signal Melt · 05.02 Night Tape
 
-**Lens Dot Bevel (uEffectMode=7):** Soft Bevel · Hard Bevel · Specular Punch · Toxic Candy Drift · Warhol Drift · Neon Flux Drift · Thermal Drift · Spectral Delta Bloom
+**Posterize Glitch Comic (uEffectMode=6):** 06.01 Warhol Pop · 06.02 Neon Cel · 06.03 Acid Bloom · 06.04 Plasma Burn
 
-**Mirror Zoom Tiles (uEffectMode=8):** Pulse · Wide Pulse · Hyper Pulse
+**Lens Dot Bevel (uEffectMode=7):** 07.01 Soft Bevel · 07.02 Hard Bevel · 07.03 Specular Punch · 07.04 Toxic Candy Drift · 07.05 Warhol Drift · 07.06 Neon Flux Drift · 07.07 Thermal Drift · 07.08 Spectral Delta Bloom
 
-**Chromatic Trails (uEffectMode=9):** RGB Trail · Neon Trail · Thermal Trail
+**Mirror Zoom Tiles (uEffectMode=8):** 08.01 Pulse · 08.02 Wide Pulse · 08.03 Hyper Pulse
+
+**Chromatic Trails (uEffectMode=9):** 09.01 RGB Trail · 09.02 Neon Trail · 09.03 Thermal Trail
+
+**Vector Profile Scope (uEffectMode=10):** 10.01 Scope Mono · 10.02 Camera Overlay · 10.03 Tint Overlay · 10.04 Thermal Overlay
 
 ## Runtime controls
 
@@ -171,7 +177,8 @@ On the target Raspberry Pi:
 |---|---|
 | Space | Cycle effect mode |
 | S | 3-second countdown then save rendered screenshot to `shots/` |
-| ↑ / ↓ | Cycle color mode (per-effect independent) |
+| PgUp / PgDn | Cycle color mode (per-effect independent) |
+| ↑ / ↓ | Per-effect secondary tweak (e.g. terrain interference; no-op if not defined for current mode) |
 | ← / → | Adjust active effect parameter (wave/density/size/raster/codec/VHS/poster/lens/mirror/trail) |
 | V | Cycle view mode |
 | M | Toggle horizontal mirror of current view |
@@ -182,17 +189,18 @@ On the target Raspberry Pi:
 
 - **Default view**: 16:9
 - **Default effect**: `00 Rutt-Etra CRT`
-- **Rutt-Etra** color: `00.03 Prism Warp` (index 2)
-- **ASCII Cam** color: `01.01 Symbol Color` (index 0), density 3.00
-- **Pixel Art** color: `02.02 DMG Classic` (index 1), block size 6px
-- **Raster Vision** color: `03.01 Thermal Raster` (index 0), dot size 12px
-- **Digital Codec Corruption** color: `04.01 RGB Mosh` (index 0), amount 2.0
-- **VHS Tracking Burn** color: `05.01 Signal Melt` (index 0), tracking 1.5
-- **Posterize Glitch Comic** color: `06.01 Warhol Pop` (index 0), levels 4
-- **Lens Dot Bevel** color: `07.01 Soft Bevel` (index 0), detail 2.6
-- **Mirror Zoom Tiles** color: `08.01 Pulse` (index 0), zoom 0.80
-- **Chromatic Trails** color: `09.01 RGB Trail` (index 0), intensity 1.20
-- **Rutt wave**: 0.40 (range 0.40–3.80, step 0.10)
+- **Rutt-Etra** color: `00.01 Prism Warp` (index 0), wave 0.40 (range 0.05–3.80)
+  - ↑/↓ per sub-mode: Prism Warp = split 1.0 (0.1–5.0) · Phosphor = tint 1.0 (0.0–2.0, 0=cyan/1=green/2=amber) · Wire Mono = contrast 1.0 (0.2–3.0) · Terrain = interference 1.5 (0.5–5.0)
+- **ASCII Cam** color: `01.01 Symbol Color` (index 0), density 3.00 (range 1.00–6.00)
+- **Pixel Art** color: `02.01 Game Boy` (index 0), block size 6px (range 4–48)
+- **Raster Vision** color: `03.01 Thermal Raster` (index 0), dot size 12px (range 4–48)
+- **Digital Codec Corruption** color: `04.01 RGB Mosh` (index 0), amount 2.0 (range 0.5–6.0)
+- **VHS Tracking Burn** color: `05.01 Signal Melt` (index 0), tracking 1.5 (range 0.5–5.0)
+- **Posterize Glitch Comic** color: `06.01 Warhol Pop` (index 0), levels 4 (range 2–12)
+- **Lens Dot Bevel** color: `07.01 Soft Bevel` (index 0), detail 2.6 (range 0.20–14.0)
+- **Mirror Zoom Tiles** color: `08.01 Pulse` (index 0), zoom 0.80 (range 0.2–1.6)
+- **Chromatic Trails** color: `09.01 RGB Trail` (index 0), intensity 1.20 (range 0.5–2.4)
+- **Vector Profile Scope** color: `10.01 Scope Mono` (index 0), grid 2.20 (range 0.8–3.4)
 - **FPS baseline**: ~20 FPS on RPi4
 
 ## Testing

@@ -286,48 +286,62 @@ vec3 drawFpsOverlay(vec3 color, vec2 fragCoord) {
 }
 
 vec3 renderRuttV002(vec2 uv, vec2 fragCoord) {
-    // v002 / Joy Division terrain style — single-pass, no loop.
-    // Occlusion: if the line above displaced down past us, we go dark.
+    // v002 / Joy Division terrain style.
+    // uRuttWave  (←/→) : base displacement scale.
+    // uAsciiDensity (↑/↓ in terrain mode) : interference between adjacent scan lines (0.5–5.0).
+    // At low interference lines are independent; at high they pull and push each other,
+    // creating standing-wave mountains and deep shadowed valleys.
     vec2 mUV = cameraMirrorUV(uv);
-
-    float ext = EXTRUSION * uRuttWave * 2.0;
     float spacing = 1.0 / LINES;
+
+    float interf     = clamp(uAsciiDensity, 0.5, 5.0);
+    float interfNorm = (interf - 0.5) / 4.5;               // 0→1
+    float ext        = EXTRUSION * uRuttWave * (2.0 + interfNorm * 8.0); // 2× at min, 10× at max
 
     // Which line owns this pixel
     float baseI = floor(mUV.y * LINES);
     float normI = baseI / LINES;
-    vec3 texColor = texture(iChannel0, safeUV(vec2(mUV.x, normI))).rgb;
-    float luma = getLuma(texColor);
-    float lineY = normI + luma * ext;
-    float dist = abs(mUV.y - lineY);
+    vec3  texColor = texture(iChannel0, safeUV(vec2(mUV.x, normI))).rgb;
+    float luma     = getLuma(texColor);
 
-    // Line rendering — same as standard Rutt
+    // Sample immediate neighbours for interference
+    float aboveLuma = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, clamp(normI + spacing, 0.0, 1.0)))).rgb);
+    float belowLuma = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, clamp(normI - spacing, 0.0, 1.0)))).rgb);
+
+    // Interference: sinusoidal response to neighbour delta + gravitational pull toward mean
+    float wave = sin((aboveLuma - belowLuma) * PI * interf) * 0.40 * interfNorm;
+    float pull = ((aboveLuma + belowLuma) * 0.5 - luma) * 0.30 * interfNorm;
+    float lumaFinal = clamp(luma + wave + pull, 0.0, 1.5);
+
+    float lineY = normI + lumaFinal * ext;
+    float dist  = abs(mUV.y - lineY);
+
     float lineAlpha = 1.0 - smoothstep(0.0, LINE_WIDTH, dist);
-    float glow = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.24 * luma;
-    float scaffold = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, abs(mUV.y - normI));
-
-    vec3 lineCol = texColor * 2.2;
-    vec3 color = lineCol * (lineAlpha + glow);
+    float glow      = (1.0 - smoothstep(0.0, LINE_WIDTH * 5.0, dist)) * 0.24 * luma;
+    float scaffold  = 1.0 - smoothstep(0.0, LINE_WIDTH * 1.6, abs(mUV.y - normI));
+    vec3  lineCol   = texColor * 2.2;
+    vec3  color     = lineCol * (lineAlpha + glow);
     color += lineCol * scaffold * (0.10 + 0.18 * luma);
 
-    // Occlusion from lines directly above
+    // Occlusion from up to 6 lines above, each applying the same interference formula
     float occlude = 0.0;
-    for (float k = 1.0; k <= 3.0; k++) {
-        float aboveI = (baseI + k) / LINES;
-        if (aboveI > 1.0) break;
-        float aboveLuma = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, aboveI))).rgb);
-        float aboveLineY = aboveI + aboveLuma * ext;
-        float below = aboveLineY - mUV.y;
-        occlude = max(occlude, smoothstep(spacing * 0.5, -spacing * 0.05, below));
+    for (float k = 1.0; k <= 6.0; k += 1.0) {
+        float aboveOI = (baseI + k) / LINES;
+        if (aboveOI > 1.0) break;
+        float aoLuma  = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, aboveOI))).rgb);
+        float aoAbove = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, clamp(aboveOI + spacing, 0.0, 1.0)))).rgb);
+        float aoBelow = getLuma(texture(iChannel0, safeUV(vec2(mUV.x, clamp(aboveOI - spacing, 0.0, 1.0)))).rgb);
+        float aoWave  = sin((aoAbove - aoBelow) * PI * interf) * 0.40 * interfNorm;
+        float aoPull  = ((aoAbove + aoBelow) * 0.5 - aoLuma) * 0.30 * interfNorm;
+        float aoFinal = clamp(aoLuma + aoWave + aoPull, 0.0, 1.5);
+        float aboveLineY = aboveOI + aoFinal * ext;
+        occlude = max(occlude, smoothstep(spacing * 0.5, -spacing * 0.05, aboveLineY - mUV.y));
     }
-
-    // Soft occlusion — keeps lines visible even behind peaks
     color *= mix(1.0, 0.15, occlude);
 
-    // CRT post
-    float scan = 0.97 + 0.03 * sin((mUV.y * iResolution.y) * PI);
+    float scan     = 0.97 + 0.03 * sin((mUV.y * iResolution.y) * PI);
     float vignette = pow(clamp(16.0 * mUV.x * mUV.y * (1.0 - mUV.x) * (1.0 - mUV.y), 0.0, 1.0), 0.20);
-    float noise = (hash12(fragCoord + vec2(iTime * 48.0, iTime * 17.0)) - 0.5) * NOISE_STRENGTH;
+    float noise    = (hash12(fragCoord + vec2(iTime * 48.0, iTime * 17.0)) - 0.5) * NOISE_STRENGTH;
     color *= scan * mix(0.72, 1.0, vignette);
     color += noise;
     return clamp(color, 0.0, 1.0);
@@ -335,54 +349,16 @@ vec3 renderRuttV002(vec2 uv, vec2 fragCoord) {
 
 vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     vec2 sampleBase = cameraMirrorUV(uv);
+    // uAsciiDensity carries the per-submode ↑/↓ parameter:
+    //   colorMode 2 (Prism Warp)  → chromatic split multiplier  (0.1–5.0, default 1.0)
+    //   colorMode 1 (Phosphor)    → phosphor tint 0=cyan 1=green 2=amber (default 1.0)
+    //   colorMode 0 (Wire Mono)   → displacement contrast gamma  (0.2–3.0, default 1.0)
+    float splitMult = clamp(uAsciiDensity, 0.1, 5.0);
     if (uColorMode == 2) {
         sampleBase += vec2(
             sin((sampleBase.y + iTime * 0.20) * 16.0),
             cos((sampleBase.x - iTime * 0.16) * 13.0)
-        ) * 0.0038;
-    } else if (uColorMode == 3) {
-        vec2 p = sampleBase - 0.5;
-        float r = length(p);
-        float a = atan(p.y, p.x);
-        a += sin(r * 10.0 - iTime * 0.40) * 0.058;
-        sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
-        sampleBase += vec2(
-            cos((sampleBase.y + iTime * 0.24) * 14.0),
-            sin((sampleBase.x - iTime * 0.21) * 12.0)
-        ) * 0.0058;
-        sampleBase += vec2(
-            sin((p.y + iTime * 0.36) * 19.0),
-            cos((p.x - iTime * 0.33) * 17.0)
-        ) * 0.0022;
-    } else if (uColorMode == 4) {
-        vec2 p = sampleBase - 0.5;
-        float r = length(p);
-        float a = atan(p.y, p.x);
-        a += sin(r * 14.0 - iTime * 0.82) * 0.160;
-        sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
-        sampleBase += vec2(
-            sin((sampleBase.y + iTime * 0.72) * 34.0),
-            cos((sampleBase.x - iTime * 0.66) * 29.0)
-        ) * 0.0175;
-        sampleBase += vec2(
-            sin((sampleBase.y * 41.0) + iTime * 2.40),
-            cos((sampleBase.x * 33.0) - iTime * 2.10)
-        ) * 0.0085;
-    } else if (uColorMode == 5) {
-        vec2 p = sampleBase - 0.5;
-        float r = length(p);
-        float a = atan(p.y, p.x);
-        a += sin(r * 17.0 - iTime * 1.00) * 0.21
-             + cos((p.x + p.y) * 22.0 + iTime * 0.95) * 0.120;
-        sampleBase = 0.5 + vec2(cos(a), sin(a)) * r;
-        sampleBase += vec2(
-            sin((sampleBase.y + iTime * 1.05) * 44.0),
-            cos((sampleBase.x - iTime * 0.95) * 39.0)
-        ) * 0.0240;
-        sampleBase += vec2(
-            sin((p.y * 29.0) + iTime * 3.10) + cos((p.x * 17.0) - iTime * 2.30),
-            cos((p.x * 27.0) - iTime * 2.90) + sin((p.y * 19.0) + iTime * 2.00)
-        ) * 0.0090;
+        ) * 0.0038 * splitMult;
     }
     sampleBase = safeUV(sampleBase);
 
@@ -412,6 +388,12 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
             getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px, 0.0))).rgb) * 0.2 +
             getLuma(texture(iChannel0, safeUV(sampleUV + vec2(px * 2.0, 0.0))).rgb) * 0.1;
     }
+    // Wire Mono: ↑/↓ bends the luma gamma — low contrast = flat uniform waves,
+    // high contrast = bright spikes, dark areas nearly flat.
+    if (uColorMode == 0) {
+        float contrast = clamp(uAsciiDensity, 0.2, 3.0);
+        lumaRaw = pow(max(lumaRaw, 0.0), 1.0 / contrast);
+    }
     float luma = liftShadowLuma(lumaRaw);
 
     float waveScale = 1.0;
@@ -437,11 +419,17 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
     if (uColorMode == 0) {
         lineCol = vec3(1.08);
     } else if (uColorMode == 1) {
-        // Phosphor: P31-style green CRT phosphor, luma drives line intensity and glow
-        lineCol = vec3(0.04, 0.85 + luma * 0.55, 0.06);
+        // Phosphor: ↑/↓ sweeps tint — 0.0=cold cyan · 1.0=classic P31 green · 2.0=warm P3 amber
+        float tint = clamp(uAsciiDensity, 0.0, 2.0);
+        vec3 coldPhosphor  = vec3(0.04, 0.70 + luma * 0.40, 0.90 + luma * 0.30);
+        vec3 greenPhosphor = vec3(0.04, 0.85 + luma * 0.55, 0.06);
+        vec3 amberPhosphor = vec3(0.90 + luma * 0.30, 0.55 + luma * 0.35, 0.04);
+        lineCol = (tint <= 1.0)
+            ? mix(coldPhosphor, greenPhosphor, tint)
+            : mix(greenPhosphor, amberPhosphor, tint - 1.0);
     } else if (uColorMode == 2) {
-        // Prism Warp: subtle chromatic split with camera color bleed — the signature look
-        float shift = 0.0016;
+        // Prism Warp: ↑/↓ scales chromatic split — 1.0=default, <1=tighter, >1=wider explosion
+        float shift = 0.0016 * splitMult;
         float r = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(shift, 0.0))).rgb).r;
         float g = camColor.g * 1.18;
         float b = liftShadows(texture(iChannel0, safeUV(sampleUV + vec2(-shift, 0.0))).rgb).b;

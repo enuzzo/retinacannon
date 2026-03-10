@@ -120,6 +120,10 @@ current_rutt_color_mode = 0
 current_ascii_color_mode = 0
 current_pixelart_color_mode = 0
 current_rutt_wave = 0.40
+current_rutt_prismwarp_split = 1.0
+current_rutt_phosphor_tint = 1.0
+current_rutt_wiremono_contrast = 1.0
+current_terrain_amp = 1.50
 current_ascii_density = 3.00
 current_pixelart_size = 6.0
 current_raster_color_mode = 0
@@ -164,8 +168,20 @@ current_view_mode = 0
 current_mirror_view = 1
 current_show_fps = 0
 RUTT_WAVE_STEP = 0.10
-RUTT_WAVE_MIN = 0.40
+RUTT_WAVE_MIN = 0.05
 RUTT_WAVE_MAX = 3.80
+RUTT_SPLIT_STEP = 0.20
+RUTT_SPLIT_MIN = 0.1
+RUTT_SPLIT_MAX = 5.0
+RUTT_PHOSPHOR_STEP = 0.10
+RUTT_PHOSPHOR_MIN = 0.0
+RUTT_PHOSPHOR_MAX = 2.0
+RUTT_CONTRAST_STEP = 0.10
+RUTT_CONTRAST_MIN = 0.2
+RUTT_CONTRAST_MAX = 3.0
+TERRAIN_AMP_STEP = 0.25
+TERRAIN_AMP_MIN = 0.5
+TERRAIN_AMP_MAX = 5.0
 ASCII_DENSITY_STEP = 0.20
 ASCII_DENSITY_MIN = 1.00
 ASCII_DENSITY_MAX = 6.00
@@ -173,7 +189,7 @@ PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
 
-RUTT_COLOR_MODE_NAMES = ['Prism Warp', 'Phosphor', 'Wire Mono', 'Mega Wave', 'Prism Surge', 'v002 Terrain']
+RUTT_COLOR_MODE_NAMES = ['Prism Warp', 'Phosphor', 'Wire Mono', 'v002 Terrain']
 ASCII_COLOR_MODE_NAMES = ['Symbol Color', 'Symbol Mono', 'Dense Mono Mix', 'Dense Color Mix']
 PIXELART_COLOR_MODE_NAMES = ['Game Boy', 'Pixel Native', 'Toxic Candy']
 PIXELART_MODE_DEFAULT_SIZES = [6.0, 4.0, 8.0]
@@ -449,25 +465,45 @@ def _figlet_title_lines(max_width=None):
                 continue
     if best is not None:
         return best
-    if max_width is not None and len('RETINA CANNON') <= max_width:
+    if max_width is None or _max_line_width(RETINA_CANNON_ASCII) <= max_width:
+        return RETINA_CANNON_ASCII
+    if len('RETINA CANNON') <= max_width:
         return ['RETINA CANNON']
     return RETINA_CANNON_ASCII
+
+def _lolcat_py(text, freq=0.28, spread=3.5):
+    """Pure-Python lolcat: smooth rainbow via 24-bit RGB ANSI codes (sine waves)."""
+    seed = random.uniform(0, 255)
+    out = []
+    char_i = 0
+    for line_i, line in enumerate(text.splitlines(keepends=True)):
+        for ch in line:
+            if ch == '\n':
+                out.append(ch)
+                continue
+            x = seed + line_i / spread + char_i * freq
+            r = int(math.sin(x + 0.000) * 127 + 128)
+            g = int(math.sin(x + 2.094) * 127 + 128)  # 2π/3
+            b = int(math.sin(x + 4.189) * 127 + 128)  # 4π/3
+            out.append(f'\033[38;2;{r};{g};{b}m{ch}\033[0m')
+            char_i += 1
+    return ''.join(out)
 
 def _lolcat_colorize(text):
     lolcat_bin = shutil.which('lolcat')
     if not lolcat_bin and os.path.isfile('/usr/games/lolcat'):
         lolcat_bin = '/usr/games/lolcat'
-    if not lolcat_bin:
-        return None
-    try:
-        return subprocess.check_output(
-            [lolcat_bin, '-f'],
-            input=text,
-            text=True,
-            timeout=2.0,
-        )
-    except Exception:
-        return None
+    if lolcat_bin:
+        try:
+            return subprocess.check_output(
+                [lolcat_bin, '-f'],
+                input=text,
+                text=True,
+                timeout=2.0,
+            )
+        except Exception:
+            pass
+    return _lolcat_py(text)
 
 def _print_centered_lolcat_line(text, cols, fallback_color=ANSI_CYAN, dim=True):
     centered = _center_text_line(text, cols)
@@ -750,7 +786,7 @@ def _active_color_mode():
 # The shader was written with a different index order; this table keeps the
 # GLSL untouched while letting Python own the canonical order.
 _SHADER_COLOR_REMAP = {
-    0: [2, 1, 0, 3, 4, 5], # Rutt: Prism Warp(→2), Phosphor(→1), Wire Mono(→0), Mega Wave(→3), Prism Surge(→4), v002 Terrain(→5)
+    0: [2, 1, 0, 5], # Rutt: Prism Warp(→2), Phosphor(→1), Wire Mono(→0), v002 Terrain(→5)
     2: [1, 0, 2],          # Pixel Art: Game Boy(→1), Pixel Native(→0), Toxic Candy(→2)
 }
 
@@ -813,7 +849,18 @@ def _cycle_active_color_mode(step):
     print(f'\r[COLOR {_subeffect_code()}/{_active_color_mode_count():02d}] {_color_mode_name()} | {_effect_param_label()}        ')
 
 def _effect_param_label():
-    if current_effect_mode == 0:   return f'[RUTT] Wave {current_rutt_wave:.2f}x'
+    if current_effect_mode == 0:
+        w = f'Wave {current_rutt_wave:.2f}x'
+        if current_rutt_color_mode == 0:
+            return f'[PRISM WARP] {w} | Split {current_rutt_prismwarp_split:.1f}x'
+        if current_rutt_color_mode == 1:
+            tname = 'Cyan' if current_rutt_phosphor_tint < 0.8 else ('Amber' if current_rutt_phosphor_tint > 1.3 else 'Green')
+            return f'[PHOSPHOR] {w} | Tint {tname} {current_rutt_phosphor_tint:.1f}'
+        if current_rutt_color_mode == 2:
+            return f'[WIRE MONO] {w} | Contrast {current_rutt_wiremono_contrast:.1f}x'
+        if current_rutt_color_mode == 3:
+            return f'[TERRAIN] {w} | Interf {current_terrain_amp:.2f}x'
+        return f'[RUTT] {w}'
     if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x'
     if current_effect_mode == 2:   return f'[PIXEL] Block {int(current_pixelart_size)}px'
     if current_effect_mode == 3:   return f'[RASTER] Dot {int(current_raster_size)}px'
@@ -1108,7 +1155,18 @@ def on_render(frame, time):
     if loc_rutt_wave >= 0:
         glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
     if loc_ascii_density >= 0:
-        if current_effect_mode == 4:
+        if current_effect_mode == 0:
+            if current_rutt_color_mode == 0:
+                _d = current_rutt_prismwarp_split
+            elif current_rutt_color_mode == 1:
+                _d = current_rutt_phosphor_tint
+            elif current_rutt_color_mode == 2:
+                _d = current_rutt_wiremono_contrast
+            elif current_rutt_color_mode == 3:
+                _d = current_terrain_amp
+            else:
+                _d = 1.0
+        elif current_effect_mode == 4:
             _d = current_datamosh_amount
         elif current_effect_mode == 5:
             _d = current_vhs_tracking
@@ -1197,6 +1255,10 @@ def _set_keyboard_mode(fd):
 def _decode_arrow(seq):
     if not seq:
         return None
+    if seq == '[5~':
+        return 'page_up'
+    if seq == '[6~':
+        return 'page_down'
     if seq[0] in ('[', 'O'):
         key = seq[-1]
     else:
@@ -1211,7 +1273,9 @@ def _decode_arrow(seq):
     }.get(key)
 
 def keyboard_thread():
-    global current_rutt_wave, current_ascii_density, current_pixelart_size
+    global current_rutt_wave, current_rutt_prismwarp_split, current_rutt_phosphor_tint
+    global current_rutt_wiremono_contrast, current_terrain_amp
+    global current_ascii_density, current_pixelart_size
     global current_raster_size
     global current_datamosh_amount, current_vhs_tracking, current_poster_levels
     global current_lensdot_detail, current_mirrorzoom_amount
@@ -1265,10 +1329,33 @@ def keyboard_thread():
             if ch == '\x1b':
                 seq = _read_escape_sequence(fd)
                 direction = _decode_arrow(seq)
-                if direction == 'up':
+                if direction == 'page_up':
                     _cycle_active_color_mode(+1)
-                elif direction == 'down':
+                elif direction == 'page_down':
                     _cycle_active_color_mode(-1)
+                elif direction == 'up':
+                    if current_effect_mode == 0:
+                        if current_rutt_color_mode == 0:
+                            current_rutt_prismwarp_split = min(RUTT_SPLIT_MAX, current_rutt_prismwarp_split + RUTT_SPLIT_STEP)
+                        elif current_rutt_color_mode == 1:
+                            current_rutt_phosphor_tint = min(RUTT_PHOSPHOR_MAX, current_rutt_phosphor_tint + RUTT_PHOSPHOR_STEP)
+                        elif current_rutt_color_mode == 2:
+                            current_rutt_wiremono_contrast = min(RUTT_CONTRAST_MAX, current_rutt_wiremono_contrast + RUTT_CONTRAST_STEP)
+                        elif current_rutt_color_mode == 3:
+                            current_terrain_amp = min(TERRAIN_AMP_MAX, current_terrain_amp + TERRAIN_AMP_STEP)
+                        print(f'\r{_effect_param_label()}        ')
+                elif direction == 'down':
+                    if current_effect_mode == 0:
+                        if current_rutt_color_mode == 0:
+                            current_rutt_prismwarp_split = max(RUTT_SPLIT_MIN, current_rutt_prismwarp_split - RUTT_SPLIT_STEP)
+                        elif current_rutt_color_mode == 1:
+                            current_rutt_phosphor_tint = max(RUTT_PHOSPHOR_MIN, current_rutt_phosphor_tint - RUTT_PHOSPHOR_STEP)
+                        elif current_rutt_color_mode == 2:
+                            current_rutt_wiremono_contrast = max(RUTT_CONTRAST_MIN, current_rutt_wiremono_contrast - RUTT_CONTRAST_STEP)
+                        elif current_rutt_color_mode == 3:
+                            current_terrain_amp = max(TERRAIN_AMP_MIN, current_terrain_amp - TERRAIN_AMP_STEP)
+                        print(f'\r{_effect_param_label()}        ')
+
                 elif direction == 'right':
                     if current_effect_mode == 0:
                         current_rutt_wave = min(RUTT_WAVE_MAX, current_rutt_wave + RUTT_WAVE_STEP)
