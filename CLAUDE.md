@@ -191,7 +191,7 @@ is always the default (index 0), and ↑ arrow increments through the list.
 - **Default effect**: `00 Rutt-Etra CRT`
 - **Rutt-Etra** color: `00.01 Prism Warp` (index 0), wave 0.40 (range 0.05–3.80)
   - ↑/↓ per sub-mode: Prism Warp = split 1.0 (0.1–5.0) · Phosphor = tint 1.0 (0.0–2.0, 0=cyan/1=green/2=amber) · Wire Mono = contrast 1.0 (0.2–3.0) · Terrain = interference 1.5 (0.5–5.0)
-- **ASCII Cam** color: `01.01 Symbol Color` (index 0), density 3.00 (range 1.00–6.00)
+- **ASCII Cam** color: `01.01 Symbol Color` (index 0), density 3.00 (range 1.00–6.00), contrast 1.0 (↑/↓, range 0.20–3.00 via uRuttWave channel)
 - **Pixel Art** color: `02.01 Game Boy` (index 0), block size 6px (range 4–48)
 - **Raster Vision** color: `03.01 Thermal Raster` (index 0), dot size 12px (range 4–48)
 - **Digital Codec Corruption** color: `04.01 RGB Mosh` (index 0), amount 2.0 (range 0.5–6.0)

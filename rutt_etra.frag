@@ -490,6 +490,8 @@ vec3 renderRutt(vec2 uv, vec2 fragCoord) {
 
 vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     float charAspect = 1.85;
+    // uRuttWave repurposed as ASCII luma contrast (↑/↓): 1.0=neutral, >1=sharper, <1=flatter
+    float contrast = clamp(uRuttWave, 0.20, 3.0);
     // Dense modes (2+3) run at 2× density and mix letters+symbols
     bool denseMode = (uColorMode >= 2);
     float density = denseMode
@@ -508,7 +510,7 @@ vec3 renderAscii(vec2 uv, vec2 fragCoord) {
     float luma = getLuma(camColor);
     float shadowBoost = 1.0 - smoothstep(0.08, 0.58, luma);
     float boosted = clamp(luma + shadowBoost * 0.18, 0.0, 1.0);
-    boosted = clamp(pow(boosted, 0.83), 0.0, 1.0);
+    boosted = clamp(pow(boosted, 0.83 * contrast), 0.0, 1.0);
     vec3 camLifted = clamp(camColor + vec3(0.10 * shadowBoost), 0.0, 1.0);
 
     // Dense modes: not inverted. Modes 0/1: symbols only. Dense: 70% letters + 30% symbols.

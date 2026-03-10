@@ -125,6 +125,7 @@ current_rutt_phosphor_tint = 1.0
 current_rutt_wiremono_contrast = 1.0
 current_terrain_amp = 1.50
 current_ascii_density = 3.00
+current_ascii_contrast = 1.0
 current_pixelart_size = 6.0
 current_raster_color_mode = 0
 current_raster_size = 12.0
@@ -185,6 +186,9 @@ TERRAIN_AMP_MAX = 5.0
 ASCII_DENSITY_STEP = 0.20
 ASCII_DENSITY_MIN = 1.00
 ASCII_DENSITY_MAX = 6.00
+ASCII_CONTRAST_STEP = 0.10
+ASCII_CONTRAST_MIN = 0.20
+ASCII_CONTRAST_MAX = 3.0
 PIXELART_SIZE_STEP = 2.0
 PIXELART_SIZE_MIN = 4.0
 PIXELART_SIZE_MAX = 48.0
@@ -471,7 +475,7 @@ def _figlet_title_lines(max_width=None):
         return ['RETINA CANNON']
     return RETINA_CANNON_ASCII
 
-def _lolcat_py(text, freq=0.28, spread=3.5):
+def _lolcat_py(text, freq=0.07, spread=3.0):
     """Pure-Python lolcat: smooth rainbow via 24-bit RGB ANSI codes (sine waves)."""
     seed = random.uniform(0, 255)
     out = []
@@ -861,7 +865,7 @@ def _effect_param_label():
         if current_rutt_color_mode == 3:
             return f'[TERRAIN] {w} | Interf {current_terrain_amp:.2f}x'
         return f'[RUTT] {w}'
-    if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x'
+    if current_effect_mode == 1:   return f'[ASCII] Density {current_ascii_density:.2f}x | Contrast {current_ascii_contrast:.2f}'
     if current_effect_mode == 2:   return f'[PIXEL] Block {int(current_pixelart_size)}px'
     if current_effect_mode == 3:   return f'[RASTER] Dot {int(current_raster_size)}px'
     if current_effect_mode == 4:   return f'[CODEC] Amount {current_datamosh_amount:.2f}x'
@@ -1153,7 +1157,8 @@ def on_render(frame, time):
     if loc_color_mode >= 0:
         glsl.glUniform1i(loc_color_mode, _shader_color_mode())
     if loc_rutt_wave >= 0:
-        glsl.glUniform1f(loc_rutt_wave, c_float(current_rutt_wave))
+        _wave = current_ascii_contrast if current_effect_mode == 1 else current_rutt_wave
+        glsl.glUniform1f(loc_rutt_wave, c_float(_wave))
     if loc_ascii_density >= 0:
         if current_effect_mode == 0:
             if current_rutt_color_mode == 0:
@@ -1275,7 +1280,7 @@ def _decode_arrow(seq):
 def keyboard_thread():
     global current_rutt_wave, current_rutt_prismwarp_split, current_rutt_phosphor_tint
     global current_rutt_wiremono_contrast, current_terrain_amp
-    global current_ascii_density, current_pixelart_size
+    global current_ascii_density, current_ascii_contrast, current_pixelart_size
     global current_raster_size
     global current_datamosh_amount, current_vhs_tracking, current_poster_levels
     global current_lensdot_detail, current_mirrorzoom_amount
@@ -1344,6 +1349,9 @@ def keyboard_thread():
                         elif current_rutt_color_mode == 3:
                             current_terrain_amp = min(TERRAIN_AMP_MAX, current_terrain_amp + TERRAIN_AMP_STEP)
                         print(f'\r{_effect_param_label()}        ')
+                    elif current_effect_mode == 1:
+                        current_ascii_contrast = min(ASCII_CONTRAST_MAX, current_ascii_contrast + ASCII_CONTRAST_STEP)
+                        print(f'\r{_effect_param_label()}        ')
                 elif direction == 'down':
                     if current_effect_mode == 0:
                         if current_rutt_color_mode == 0:
@@ -1354,6 +1362,9 @@ def keyboard_thread():
                             current_rutt_wiremono_contrast = max(RUTT_CONTRAST_MIN, current_rutt_wiremono_contrast - RUTT_CONTRAST_STEP)
                         elif current_rutt_color_mode == 3:
                             current_terrain_amp = max(TERRAIN_AMP_MIN, current_terrain_amp - TERRAIN_AMP_STEP)
+                        print(f'\r{_effect_param_label()}        ')
+                    elif current_effect_mode == 1:
+                        current_ascii_contrast = max(ASCII_CONTRAST_MIN, current_ascii_contrast - ASCII_CONTRAST_STEP)
                         print(f'\r{_effect_param_label()}        ')
 
                 elif direction == 'right':
