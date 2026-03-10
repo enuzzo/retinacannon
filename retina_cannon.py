@@ -731,9 +731,13 @@ def _build_splash_lines(cols, rows):
     lines.append(('', ''))
 
     # Quote — full brightness (the reveal IS the entrance effect)
-    quote_short = quote_raw[:cols - 4] if len(quote_raw) > cols - 4 else quote_raw
-    centered_q  = _center_text_line('\u201c' + quote_short + '\u201d', cols)
-    lines.append((centered_q, '\033[1;97m' + centered_q + ANSI_RESET))
+    quote_short = quote_raw[:cols - 8] if len(quote_raw) > cols - 8 else quote_raw
+    quote_plain = '>>  ' + quote_short + '  <<'
+    centered_q  = _center_text_line(quote_plain, cols)
+    pad         = ' ' * max(0, len(centered_q) - len(quote_plain))
+    quote_styled = (pad + '\033[2;37m>>\033[0m  \033[1;97m'
+                    + quote_short + '\033[0m  \033[2;37m<<\033[0m')
+    lines.append((centered_q, quote_styled))
 
     # Blank below quote
     lines.append(('', ''))
