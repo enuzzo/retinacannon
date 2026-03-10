@@ -36,7 +36,7 @@ At some point the only reasonable response is to give one of them a camera, a mo
 
 ### TL;DR
 
-*(Sprinkled with emojis because let's face it: reading is hard, and a proper TL;DR needs them—kind of like a toddler needing a picture book instead of actual text).*
+*(Sprinkled with emojis because let's face it: reading is hard, and a proper TL;DR needs them, kind of like a toddler needing a picture book instead of actual text).*
 
 * 📷 **The Pipeline:** Live Pi Cam → one GLSL Shader → Bare-Metal GPU. No desktop environment, no X11 bloat, zero compositor bullshit. Just pure graphical violence injected straight into the display hardware.
 * ⌨️ **The Controls:** Mash `Space` to cycle through 11 reality-bending shaders. Arrow keys for live tweaks. `V/M/F/S` for View, Mirror, FPS, and Screenshots.
