@@ -814,9 +814,18 @@ def _matrix_reveal_animation(content_lines, cols, n_screen_rows):
         out.flush()
         time.sleep(frame_dt)
 
-    # Full repaint with proper styled text (lolcat title, cyan box, etc.)
-    for row_idx, (_plain, styled) in enumerate(content_lines):
-        out.write(f'\033[{row_idx + 1};1H' + styled + '\033[K')
+    # Colorize pass: rows light up in random order over ~0.6 s.
+    # Rows appear 2-3 at a time at random screen positions — organic "crystallize" effect.
+    indices = list(range(n_content))
+    random.shuffle(indices)
+    batch    = 3
+    frame_dt_c = 0.04
+    for i in range(0, len(indices), batch):
+        for row_idx in indices[i:i + batch]:
+            _plain, styled = content_lines[row_idx]
+            out.write(f'\033[{row_idx + 1};1H' + styled + '\033[K')
+        out.flush()
+        time.sleep(frame_dt_c)
     out.write(f'\033[{n_content + 1};1H')
     out.flush()
 
