@@ -660,15 +660,15 @@ def _print_nfo_static(box_w, cols):
 # ── Matrix reveal / cover animation ─────────────────────────────────────────
 
 _MATRIX_TRAIL_COLORS = [
-    '\033[1;97m',      # 0 head  — bright white flash
-    '\033[1;92m',      # 1       — bright green
-    '\033[32m',        # 2       — green
-    '\033[2;32m',      # 3       — dim green
-    '\033[38;5;22m',   # 4       — dark green
-    '\033[38;5;22m',   # 5       — dark green (extra fade)
+    '\033[1;97m',       # 0 head — bright white
+    '\033[97m',         # 1      — white
+    '\033[37m',         # 2      — light gray
+    '\033[2;37m',       # 3      — dim gray
+    '\033[38;5;240m',   # 4      — dark gray
+    '\033[38;5;235m',   # 5      — very dark gray
 ]
-_MATRIX_TRAIL_CHARS = ['▓', '▓', '▒', '░', '·', ' ']
-_MATRIX_HEAD_CHARS  = '▓█▒'
+_MATRIX_TRAIL_CHARS = ['▓', '▒', '░', '·', '·', ' ']
+_MATRIX_HEAD_CHARS  = '█▓▒'
 
 def _build_splash_lines(cols, rows):
     """Pre-compute wide-terminal splash as list of (plain_text, styled_text) pairs.
@@ -741,70 +741,83 @@ def _build_splash_lines(cols, rows):
     return lines, quote_raw
 
 
-def _matrix_reveal_animation(content_lines, cols):
+def _matrix_reveal_animation(content_lines, cols, n_screen_rows):
     """Matrix rain drops reveal content_lines from a black screen.
 
     content_lines : list of (plain_text, styled_text), one per terminal row from row 1.
     cols          : terminal column count.
+    n_screen_rows : full terminal height — drops fall all the way to the bottom.
     Screen must be cleared to black before calling.
     Cursor is left at row len(content_lines)+1, col 1 on return.
     """
-    n_rows   = len(content_lines)
-    trail    = len(_MATRIX_TRAIL_COLORS)   # 6
-    frame_dt = 0.033                       # ~30 fps — local display, no SSH latency
+    n_content = len(content_lines)
+    trail     = len(_MATRIX_TRAIL_COLORS)  # 6
+    frame_dt  = 0.06                       # ~17 fps — deliberate rain pace
 
-    stagger  = max(2, n_rows // 4)
-    speeds   = [random.choice([1, 2, 2, 2]) for _ in range(cols)]
-    drop_row = [random.randint(-stagger, 0)  for _ in range(cols)]
+    stagger  = max(2, n_screen_rows // 4)
+    speeds   = [random.choice([1, 1, 1, 2]) for _ in range(cols)]
+    drop_row = [random.randint(-stagger, 0) for _ in range(cols)]
 
-    # Per-row revealed flag (we reveal whole rows at once for clean ANSI handling)
-    row_revealed = [False] * n_rows
+    # Per-cell done flag: True once the cell has its permanent char written.
+    # Only needed for the content rows; below content we just write spaces.
+    cell_done = [[False] * cols for _ in range(n_content)]
 
     out = sys.stdout
 
-    def _reveal_row(row):
-        if row_revealed[row]:
-            return
-        row_revealed[row] = True
-        _plain, styled = content_lines[row]
-        out.write(f'\033[{row + 1};1H' + styled + '\033[K')
+    def _finalize_cell(row, col):
+        """Write the permanent char at (row, col) — content glyph or black space."""
+        if row < n_content:
+            if cell_done[row][col]:
+                return
+            cell_done[row][col] = True
+            plain, _ = content_lines[row]
+            ch = plain[col] if col < len(plain) else ' '
+        else:
+            ch = ' '
+        if ch.strip():
+            out.write(f'\033[{row + 1};{col + 1}H\033[37m{ch}\033[0m')
+        else:
+            out.write(f'\033[{row + 1};{col + 1}H ')
 
     active = list(range(cols))
     while active:
         next_active = []
         for c in active:
+            prev_r = drop_row[c]
             drop_row[c] += speeds[c]
             r = drop_row[c]
 
-            # Draw drop head + fading trail
+            # Draw trail: head at r, fading upward
             for t in range(trail):
                 tr = r - t
-                if 0 <= tr < n_rows:
+                if 0 <= tr < n_screen_rows:
                     ch = (random.choice(_MATRIX_HEAD_CHARS) if t == 0
                           else _MATRIX_TRAIL_CHARS[t])
                     out.write(f'\033[{tr + 1};{c + 1}H'
                               f'{_MATRIX_TRAIL_COLORS[t]}{ch}\033[0m')
 
-            # Reveal the row once the full trail has passed it
-            reveal_r = r - trail
-            if 0 <= reveal_r < n_rows:
-                _reveal_row(reveal_r)
+            # Finalize every cell that exited the trail this step.
+            # With speed > 1, multiple cells exit per frame — all must be handled
+            # or they leave stale trail glyphs on screen.
+            for exit_r in range(max(0, prev_r - trail + 1),
+                                max(0, r    - trail + 1)):
+                _finalize_cell(exit_r, c)
 
-            if r < n_rows + trail + 2:
+            if r < n_screen_rows + trail + 2:
                 next_active.append(c)
             else:
-                # Column finished — flush any unrevealed rows
-                for row in range(n_rows):
-                    _reveal_row(row)
+                # Column done — finalize any remaining content cells
+                for row in range(n_content):
+                    _finalize_cell(row, c)
 
         active = next_active
         out.flush()
         time.sleep(frame_dt)
 
-    # Final repaint: ensure every row shows its proper styled text
+    # Full repaint with proper styled text (lolcat title, cyan box, etc.)
     for row_idx, (_plain, styled) in enumerate(content_lines):
         out.write(f'\033[{row_idx + 1};1H' + styled + '\033[K')
-    out.write(f'\033[{n_rows + 1};1H')
+    out.write(f'\033[{n_content + 1};1H')
     out.flush()
 
 
@@ -812,35 +825,30 @@ def _matrix_cover_animation(n_rows, cols):
     """Matrix rain drops cover terminal rows 1..n_rows back to black.
 
     Called just before _clear_to_black() + DRM handoff.
+    Per-cell erase (not per-row) to avoid stale glyph dots.
     """
     trail    = 5
-    frame_dt = 0.025   # ~40 fps on local display
+    frame_dt = 0.05    # ~20 fps — matches reveal pace
     cover_colors = [
-        '\033[1;92m',      # head   — bright green
-        '\033[32m',        # t-1    — green
-        '\033[2;32m',      # t-2    — dim green
-        '\033[38;5;22m',   # t-3    — dark green
-        '\033[38;5;232m',  # t-4    — near-black
+        '\033[1;97m',      # head   — bright white
+        '\033[37m',        # t-1    — light gray
+        '\033[2;37m',      # t-2    — dim gray
+        '\033[38;5;240m',  # t-3    — dark gray
+        '\033[38;5;235m',  # t-4    — very dark gray
     ]
     cover_chars = ['▓', '▒', '░', '·', ' ']
 
     stagger  = max(1, n_rows // 6)
-    speeds   = [random.choice([2, 2, 3]) for _ in range(cols)]
+    speeds   = [random.choice([1, 2, 2]) for _ in range(cols)]
     drop_row = [random.randint(-stagger, 0) for _ in range(cols)]
-    row_erased = [False] * n_rows
 
     out = sys.stdout
-
-    def _erase_row(row):
-        if row_erased[row]:
-            return
-        row_erased[row] = True
-        out.write(f'\033[{row + 1};1H\033[2K')
 
     active = list(range(cols))
     while active:
         next_active = []
         for c in active:
+            prev_r = drop_row[c]
             drop_row[c] += speeds[c]
             r = drop_row[c]
 
@@ -851,15 +859,18 @@ def _matrix_cover_animation(n_rows, cols):
                     out.write(f'\033[{tr + 1};{c + 1}H'
                               f'{cover_colors[t]}{ch}\033[0m')
 
-            erase_r = r - trail
-            if 0 <= erase_r < n_rows:
-                _erase_row(erase_r)
+            # Per-cell erase: write space for every cell exiting the trail this step
+            for exit_r in range(max(0, prev_r - trail + 1),
+                                max(0, r    - trail + 1)):
+                if exit_r < n_rows:
+                    out.write(f'\033[{exit_r + 1};{c + 1}H ')
 
             if r < n_rows + trail + 2:
                 next_active.append(c)
             else:
+                # Column done — erase any remaining cells
                 for row in range(n_rows):
-                    _erase_row(row)
+                    out.write(f'\033[{row + 1};{c + 1}H ')
 
         active = next_active
         out.flush()
@@ -897,7 +908,7 @@ def _print_vhs_splash(countdown_seconds):
     n_content = len(content_lines)
 
     _clear_to_black()
-    _matrix_reveal_animation(content_lines, cols)
+    _matrix_reveal_animation(content_lines, cols, rows)
 
     # Position cursor at the countdown row (one below last content line)
     sys.stdout.write(f'\033[{n_content + 1};1H')
